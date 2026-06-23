@@ -168,24 +168,27 @@ def kpi_card(value, label, color):
         "border": f"1px solid {JF['border']}",
     })
 
-def chart_status(df):
+def chart_status(df, hidden=None):
     """Barra única horizontal com chunks proporcionais por status"""
+    hidden = hidden or []
     counts = df["status_atualizacao"].value_counts()
     colors_map = {"On Track": "#27AE60", "Off Track": "#E74C3C",
                   "At Risk": "#E67E22", "On Hold": "#3498DB", "Set Status": "#95A5A6", "Done": "#8E44AD"}
 
     fig = go.Figure()
-    for status in counts.index:
+    for status in colors_map:  # sempre inclui todos, mesmo os ocultos com count=0
+        cnt = counts.get(status, 0)
         fig.add_trace(go.Bar(
             name=status,
-            x=[counts[status]],
+            visible="legendonly" if status in hidden else True,
+            x=[cnt],
             y=[""],
             orientation="h",
             marker=dict(color=colors_map.get(status, JF["text_muted"])),
-            text=str(counts[status]),
+            text=str(cnt),
             textposition="inside",
             textfont=dict(color="#fff", size=14, weight=700),
-            hovertemplate=f"{status}: {counts[status]}<extra></extra>",
+            hovertemplate=f"{status}: {cnt}<extra></extra>",
         ))
 
     fig.update_layout(
@@ -194,6 +197,7 @@ def chart_status(df):
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
         margin=dict(t=40, b=50, l=10, r=10),
         height=200,
+        uirevision=True,
         xaxis=dict(showgrid=False, visible=False),
         yaxis=dict(showgrid=False, visible=False),
         legend=dict(
@@ -445,12 +449,6 @@ def populate_filters_and_info(_n):
     resp_options = [{"label": s, "value": s} for s in opts["responsaveis"]]
     tag_options = [{"label": s.replace(":", ": "), "value": s} for s in opts["tags"]]
 
-    # Default estágios
-    defaults = ["Booking", "CT - Contratos de Tecnologia",
-                "🔄️SP/PR - Em andamento", "⏳SP/PR Em Planejamento"]
-    est_value = [d for d in defaults if d in opts["estagios"]]
-    tag_options = [{"label": s.replace(":", ": "), "value": s} for s in opts["tags"]]
-
     last = get_last_extracao()
     if last:
         fname, ts, count = last
@@ -491,24 +489,11 @@ def update_dashboard(estagios, responsaveis, tags, ocultar_val,
     ctx = dash.callback_context
     trigger_id = ctx.triggered[0]["prop_id"].split(".")[0] if ctx.triggered else ""
 
-    # Apply legend-based exclusion filters
-    hidden_status = hidden_status or []
-    hidden_plano = hidden_plano or []
-    hidden_prazo = hidden_prazo or []
-
-    if trigger_id == "btn-clear":
-        estagios = None
-        responsaveis = None
-        tags = None
-        hidden_status = []
-        hidden_plano = []
-        hidden_prazo = []
-
+    # Merge dropdown filters
     merged_estagios = estagios if estagios else None
     merged_resps = responsaveis if responsaveis else None
 
     if trigger_id == "btn-update":
-        # Run import BEFORE loading data
         import subprocess as sp
         try:
             result = sp.run(
@@ -518,6 +503,19 @@ def update_dashboard(estagios, responsaveis, tags, ocultar_val,
         except Exception:
             pass
 
+    if trigger_id == "btn-clear":
+        estagios = None
+        responsaveis = None
+        tags = None
+        hidden_status = []
+        hidden_plano = []
+        hidden_prazo = []
+
+    # Ensure hidden lists are never None
+    hidden_status = hidden_status or []
+    hidden_plano = hidden_plano or []
+    hidden_prazo = hidden_prazo or []
+
     df = load_data(
         estagios=merged_estagios,
         responsaveis=merged_resps,
@@ -525,30 +523,29 @@ def update_dashboard(estagios, responsaveis, tags, ocultar_val,
         ocultar_concluidos=ocultar,
     )
 
-    # Apply exclusion filters for legend-hidden items
+    # Apply legend-based exclusion via post-filter
     if not df.empty:
         if hidden_status:
             for s in hidden_status:
-                df = df[df['status_atualizacao'] != s]
+                df = df[df["status_atualizacao"] != s]
         if hidden_plano:
             for v in hidden_plano:
-                df = df[~df['tags_plano'].apply(lambda x: v in x if isinstance(x, list) else False)]
+                df = df[~df["tags_plano"].apply(lambda x: v in x if isinstance(x, list) else False)]
         if hidden_prazo:
             for v in hidden_prazo:
-                df = df[~df['tags_prazo'].apply(lambda x: v in x if isinstance(x, list) else False)]
+                df = df[~df["tags_prazo"].apply(lambda x: v in x if isinstance(x, list) else False)]
 
     total = len(df)
     on_track = len(df[df["status_atualizacao"] == "On Track"]) if total > 0 else 0
     off_track = len(df[df["status_atualizacao"] == "Off Track"]) if total > 0 else 0
     at_risk = len(df[df["status_atualizacao"] == "At Risk"]) if total > 0 else 0
 
-    # Subtitle
     last = get_last_extracao()
     if last:
         fname, ts, count = last
         dt = ts.strftime("%d/%m/%Y %H:%M") if hasattr(ts, "strftime") else str(ts)[:19]
         subtitle = f"{count} projetos — exibindo {total}"
-        if estagios or responsaveis or tags:
+        if estagios or responsaveis or tags or hidden_status or hidden_plano or hidden_prazo:
             subtitle += " (filtrado)"
         subtitle += f" — {fname} ({dt})"
     else:
@@ -556,107 +553,82 @@ def update_dashboard(estagios, responsaveis, tags, ocultar_val,
 
     if df.empty:
         empty_fig = go.Figure()
-        empty_fig.update_layout(
+        empty_fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", margin=dict(t=10, b=10, l=10, r=10))
+        fig_status = empty_fig
+        fig_plano = empty_fig
+        fig_prazo = empty_fig
+    else:
+        fig_status = chart_status(df, hidden_status)
+        plano_vals = flatten_tags(df, "tags_plano")
+        plano_counts = pd.Series(plano_vals).value_counts()
+        plano_tag_colors = {"Preparar": "#3498DB", "Atraso": "#E67E22",
+                              "Sem datas": "#F39C12", "Sem tarefas": "#E74C3C",
+                              "Sem responsáveis": "#F39C12", "Resp. em Tarefa Resumo": "#D4A017",
+                              "OK": "#27AE60"}
+        fig_plano = go.Figure()
+        for val in plano_tag_colors:
+            cnt = plano_counts.get(val, 0)
+            fig_plano.add_trace(go.Bar(name=val, visible="legendonly" if val in hidden_plano else True,
+                    x=[cnt], y=[""], orientation="h",
+                    marker=dict(color=plano_tag_colors.get(val, "#95A5A6")),
+                    text=str(cnt), textposition="inside", textfont=dict(color="#fff", size=13, weight=700),
+                    hovertemplate=f"{val}: {cnt}<extra></extra>"))
+        fig_plano.update_layout(barmode="stack", height=200,
+            uirevision=True,
+            title=dict(text="Tags — Plano", font=dict(color=JF["text_bright"], size=16), x=0.5),
             paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-            margin=dict(t=10, b=10, l=10, r=10),
-        )
-        return (
-            [kpi_card("0", "TOTAL", JF["text"]),
-             kpi_card("0", "ON TRACK", JF["on_track"]),
-             kpi_card("0", "OFF TRACK", JF["off_track"]),
-             kpi_card("0", "AT RISK", JF["at_risk"])],
-            subtitle, empty_fig, empty_fig, empty_fig,
-            [], [],
-            [], [], [],
-        )
-
-    # KPI cards
-    kpis = [
-        kpi_card(str(total), "TOTAL", JF["text"]),
-        kpi_card(str(on_track), "ON TRACK", JF["on_track"]),
-        kpi_card(str(off_track), "OFF TRACK", JF["off_track"]),
-        kpi_card(str(at_risk), "AT RISK", JF["at_risk"]),
-    ]
-
-    # Charts
-    fig_status = chart_status(df)
-
-    # Plano stacked bar
-    plano_vals = flatten_tags(df, "tags_plano")
-    plano_counts = pd.Series(plano_vals).value_counts()
-    plano_tag_colors = {"Preparar": "#3498DB", "Atraso": "#E67E22",
-                          "Sem datas": "#F39C12", "Sem tarefas": "#E74C3C",
-                          "Sem responsáveis": "#F39C12", "Resp. em Tarefa Resumo": "#D4A017",
-                          "OK": "#27AE60"}
-    fig_plano = go.Figure()
-    for val, cnt in plano_counts.items():
-        fig_plano.add_trace(go.Bar(
-            name=val, x=[cnt], y=[""], orientation="h",
-            marker=dict(color=plano_tag_colors.get(val, "#95A5A6")),
-            text=str(cnt), textposition="inside",
-            textfont=dict(color="#fff", size=13, weight=700),
-            hovertemplate=f"{val}: {cnt}<extra></extra>",
-        ))
-    fig_plano.update_layout(
-        barmode="stack", height=200,
-        title=dict(text="Tags — Plano", font=dict(color=JF["text_bright"], size=16), x=0.5),
-        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-        margin=dict(t=40, b=50, l=10, r=10),
-        xaxis=dict(showgrid=False, visible=False),
-        yaxis=dict(showgrid=False, visible=False),
-        legend=dict(orientation="h", yanchor="top", y=-0.3, xanchor="center", x=0.5,
-                    font=dict(color=JF["text"], size=10), bgcolor="rgba(0,0,0,0)",
-                    itemclick=False),
-        showlegend=True,
-    )
-
-    # Prazo stacked bar
-    prazo_vals = flatten_tags(df, "tags_prazo")
-    prazo_counts = pd.Series(prazo_vals).value_counts()
-    prazo_tag_colors = {"Atrasado": "#E74C3C", "<=7 dias": "#E67E22",
-                          "<=30 dias": "#F39C12", "Em dia": "#27AE60"}
-    fig_prazo = go.Figure()
-    for val, cnt in prazo_counts.items():
-        fig_prazo.add_trace(go.Bar(
-            name=val, x=[cnt], y=[""], orientation="h",
-            marker=dict(color=prazo_tag_colors.get(val, "#95A5A6")),
-            text=str(cnt), textposition="inside",
-            textfont=dict(color="#fff", size=13, weight=700),
-            hovertemplate=f"{val}: {cnt}<extra></extra>",
-        ))
-    fig_prazo.update_layout(
-        barmode="stack", height=200,
-        title=dict(text="Tags — Prazo", font=dict(color=JF["text_bright"], size=16), x=0.5),
-        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-        margin=dict(t=40, b=50, l=10, r=10),
-        xaxis=dict(showgrid=False, visible=False),
-        yaxis=dict(showgrid=False, visible=False),
-        legend=dict(orientation="h", yanchor="top", y=-0.3, xanchor="center", x=0.5,
-                    font=dict(color=JF["text"], size=10), bgcolor="rgba(0,0,0,0)",
-                    itemclick=False),
-        showlegend=True,
-    )
-
-    # Estágio e Responsável removidos
+            margin=dict(t=40, b=50, l=10, r=10),
+            xaxis=dict(showgrid=False, visible=False), yaxis=dict(showgrid=False, visible=False),
+            legend=dict(orientation="h", yanchor="top", y=-0.3, xanchor="center", x=0.5,
+                font=dict(color=JF["text"], size=10), bgcolor="rgba(0,0,0,0)"), showlegend=True)
+        prazo_vals = flatten_tags(df, "tags_prazo")
+        prazo_counts = pd.Series(prazo_vals).value_counts()
+        prazo_tag_colors = {"Atrasado": "#E74C3C", "<=7 dias": "#E67E22",
+                              "<=30 dias": "#F39C12", "Em dia": "#27AE60"}
+        fig_prazo = go.Figure()
+        for val in prazo_tag_colors:
+            cnt = prazo_counts.get(val, 0)
+            fig_prazo.add_trace(go.Bar(name=val, visible="legendonly" if val in hidden_prazo else True,
+                    x=[cnt], y=[""], orientation="h",
+                    marker=dict(color=prazo_tag_colors.get(val, "#95A5A6")),
+                    text=str(cnt), textposition="inside", textfont=dict(color="#fff", size=13, weight=700),
+                    hovertemplate=f"{val}: {cnt}<extra></extra>"))
+        fig_prazo.update_layout(barmode="stack", height=200,
+            uirevision=True,
+            title=dict(text="Tags — Prazo", font=dict(color=JF["text_bright"], size=16), x=0.5),
+            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+            margin=dict(t=40, b=50, l=10, r=10),
+            xaxis=dict(showgrid=False, visible=False), yaxis=dict(showgrid=False, visible=False),
+            legend=dict(orientation="h", yanchor="top", y=-0.3, xanchor="center", x=0.5,
+                font=dict(color=JF["text"], size=10), bgcolor="rgba(0,0,0,0)"), showlegend=True)
 
     # Table data
-    table_df = df[["nome", "responsavel", "estagio", "status_atualizacao",
-                    "data_inicio", "data_fim", "tags_raw"]].copy()
-    table_df["data_inicio"] = table_df["data_inicio"].astype(str)
-    table_df["data_fim"] = table_df["data_fim"].astype(str)
+    if df.empty:
+        columns, data = [], []
+    else:
+        table_df = df[["nome", "responsavel", "estagio", "status_atualizacao",
+                        "data_inicio", "data_fim", "tags_raw"]].copy()
+        table_df["data_inicio"] = table_df["data_inicio"].astype(str)
+        table_df["data_fim"] = table_df["data_fim"].astype(str)
+        columns = [
+            {"name": "Projeto", "id": "nome"},
+            {"name": "Responsável", "id": "responsavel"},
+            {"name": "Estágio", "id": "estagio"},
+            {"name": "Status", "id": "status_atualizacao"},
+            {"name": "Início", "id": "data_inicio"},
+            {"name": "Fim", "id": "data_fim"},
+            {"name": "Tags", "id": "tags_raw"},
+        ]
+        data = table_df.to_dict("records")
 
-    columns = [
-        {"name": "Projeto", "id": "nome"},
-        {"name": "Responsável", "id": "responsavel"},
-        {"name": "Estágio", "id": "estagio"},
-        {"name": "Status", "id": "status_atualizacao"},
-        {"name": "Início", "id": "data_inicio"},
-        {"name": "Fim", "id": "data_fim"},
-        {"name": "Tags", "id": "tags_raw"},
-    ]
-    data = table_df.to_dict("records")
+    # KPIs
+    if df.empty:
+        kpis = [kpi_card("0", "TOTAL", JF["text"]), kpi_card("0", "ON TRACK", JF["on_track"]),
+                kpi_card("0", "OFF TRACK", JF["off_track"]), kpi_card("0", "AT RISK", JF["at_risk"])]
+    else:
+        kpis = [kpi_card(str(total), "TOTAL", JF["text"]), kpi_card(str(on_track), "ON TRACK", JF["on_track"]),
+                kpi_card(str(off_track), "OFF TRACK", JF["off_track"]), kpi_card(str(at_risk), "AT RISK", JF["at_risk"])]
 
-    # Reset stores on btn-clear
     return (kpis, subtitle,
             fig_status, fig_plano, fig_prazo,
             columns, data,
@@ -668,24 +640,26 @@ def update_dashboard(estagios, responsaveis, tags, ocultar_val,
 @callback(
     Output("store-hidden-status", "data"),
     Input("chart-status", "restyleData"),
+    State("chart-status", "figure"),
     State("store-hidden-status", "data"),
     prevent_initial_call=True,
 )
-def on_legend_status(restyle, hidden):
+def on_legend_status(restyle, fig, hidden):
     if not restyle or not isinstance(restyle, list) or len(restyle) < 2:
         return dash.no_update
     update, indices = restyle
     if not indices:
         return dash.no_update
-    # Map known status values by index order
-    STATUS_ORDER = ["On Track", "Off Track", "At Risk", "On Hold", "Set Status", "Done"]
     idx = indices[0]
-    if idx >= len(STATUS_ORDER):
+    traces = (fig or {}).get("data", [])
+    if idx >= len(traces):
         return dash.no_update
-    val = STATUS_ORDER[idx]
+    val = traces[idx].get("name", "")
+    if not val:
+        return dash.no_update
+    hidden = hidden or []
     if isinstance(update, dict) and "visible" in update:
         vis = update["visible"]
-        hidden = hidden or []
         if vis == "legendonly" or vis is False:
             if val not in hidden:
                 hidden = hidden + [val]
