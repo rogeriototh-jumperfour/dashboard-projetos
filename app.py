@@ -363,6 +363,13 @@ app.layout = html.Div([
                 }),
             ], style={"padding": "0 20px 16px"}),
 
+            html.Div([
+                html.Span("v0.1.0", style={
+                    "color": JF["text_muted"], "fontSize": 10,
+                    "opacity": 0.5,
+                }),
+            ], style={"padding": "8px 20px 16px"}),
+
             html.Div(style={"flex": 1}),
 
             html.Div([
