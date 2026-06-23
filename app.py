@@ -228,7 +228,7 @@ def chart_status(df, hidden=None):
         title=dict(text="STATUS", font=dict(color=JF["text_bright"], size=16), x=0.5),
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
         margin=dict(t=40, b=50, l=10, r=10),
-        height=200,
+        height=240,
         
         xaxis=dict(showgrid=False, visible=False),
         yaxis=dict(showgrid=False, visible=False),
@@ -638,14 +638,14 @@ def update_dashboard(statuses, estagios, responsaveis, tags_plano, tags_prazo, o
                     marker=dict(color=plano_tag_colors.get(val, "#95A5A6")),
                     text=str(cnt), textposition="inside", textfont=dict(color="#fff", size=13, weight=700),
                     hovertemplate=f"{val}: {cnt}<extra></extra>"))
-        fig_plano.update_layout(uirevision=True, barmode="stack", height=200,
+        fig_plano.update_layout(uirevision=True, barmode="stack", height=240,
             title=dict(text="Qualidade do PLANO", font=dict(color=JF["text_bright"], size=16), x=0.5),
             paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-            margin=dict(t=40, b=50, l=10, r=10),
+            margin=dict(t=40, b=60, l=10, r=10),
             xaxis=dict(showgrid=False, visible=False), yaxis=dict(showgrid=False, visible=False),
-            legend=dict(orientation="h", yanchor="top", y=-0.3, xanchor="center", x=0.5,
-                                font=dict(color=JF["text"], size=10), bgcolor="rgba(0,0,0,0)",
-                                itemclick=False), showlegend=True)
+            legend=dict(orientation="h", yanchor="top", y=-0.5, xanchor="center", x=0.5,
+                        font=dict(color=JF["text"], size=10), bgcolor="rgba(0,0,0,0)",
+                        itemclick=False), showlegend=True)
         prazo_vals = flatten_tags(df, "tags_prazo")
         prazo_counts = pd.Series(prazo_vals).value_counts()
         prazo_tag_colors = {"Atrasado": "#E74C3C", "<=7 dias": "#E67E22",
@@ -658,7 +658,7 @@ def update_dashboard(statuses, estagios, responsaveis, tags_plano, tags_prazo, o
                     marker=dict(color=prazo_tag_colors.get(val, "#95A5A6")),
                     text=str(cnt), textposition="inside", textfont=dict(color="#fff", size=13, weight=700),
                     hovertemplate=f"{val}: {cnt}<extra></extra>"))
-        fig_prazo.update_layout(uirevision=True, barmode="stack", height=200,
+        fig_prazo.update_layout(uirevision=True, barmode="stack", height=240,
             title=dict(text="PRAZO", font=dict(color=JF["text_bright"], size=16), x=0.5),
             paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
             margin=dict(t=40, b=50, l=10, r=10),
