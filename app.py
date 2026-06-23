@@ -195,7 +195,7 @@ def chart_status(df):
         margin=dict(t=40, b=50, l=10, r=10),
         height=200,
         xaxis=dict(showgrid=False, visible=False),
-        yaxis=dict(showgrid=False, visible=False),
+        yaxis=dict(showgrid=False, visible=False, range=[-0.5, 0.5]),
         legend=dict(
             orientation="h",
             yanchor="top", y=-0.3,
