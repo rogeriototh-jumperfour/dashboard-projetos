@@ -542,8 +542,8 @@ def update_dashboard(estagios, responsaveis, tags, ocultar_val,
         tags = (tags or []) + click_tags
 
     # Merge with dropdown values (click overrides take precedence)
-    merged_estagios = store_estagio if store_estagio else (estagios if estagios else None)
-    merged_resps = store_resp if store_resp else (responsaveis if responsaveis else None)
+    merged_estagios = [store_estagio] if store_estagio else (estagios if estagios else None)
+    merged_resps = [store_resp] if store_resp else (responsaveis if responsaveis else None)
 
     if trigger_id == "btn-update":
         # Run import BEFORE loading data
