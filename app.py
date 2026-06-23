@@ -136,7 +136,7 @@ def load_data(estagios=None, responsaveis=None, tags=None,
     cur.execute(sql, params)
     rows = cur.fetchall()
     cur.close()
-    conn.close()
+    return_db(conn)
 
     if not rows:
         return pd.DataFrame()
