@@ -328,15 +328,15 @@ app.layout = html.Div([
 
             # Charts grid row 1
             html.Div([
-                chart_card(dcc.Graph(id="chart-status")),
-                chart_card(dcc.Graph(id="chart-plano")),
-                chart_card(dcc.Graph(id="chart-prazo")),
+                chart_card(dcc.Graph(id="chart-status", config={"displayModeBar": False})),
+                chart_card(dcc.Graph(id="chart-plano", config={"displayModeBar": False})),
+                chart_card(dcc.Graph(id="chart-prazo", config={"displayModeBar": False})),
             ], style={"display": "grid", "gridTemplateColumns": "1fr 1fr 1fr", "gap": 16, "padding": "8px 32px"}),
 
             # Charts grid row 2
             html.Div([
-                chart_card(dcc.Graph(id="chart-estagio")),
-                chart_card(dcc.Graph(id="chart-responsavel")),
+                chart_card(dcc.Graph(id="chart-estagio", config={"displayModeBar": False})),
+                chart_card(dcc.Graph(id="chart-responsavel", config={"displayModeBar": False})),
             ], style={"display": "grid", "gridTemplateColumns": "1fr 1fr", "gap": 16, "padding": "8px 32px"}),
 
             # Table
@@ -356,7 +356,7 @@ app.layout = html.Div([
                         "fontSize": 12,
                         "textTransform": "uppercase",
                     },
-                    style_cell={
+                    style_data={
                         "background": JF["bg_card"],
                         "color": JF["text"],
                         "fontSize": 12,
@@ -386,10 +386,6 @@ app.layout = html.Div([
                             "if": {"filter_query": '{status_atualizacao} = "At Risk"'},
                             "backgroundColor": "#3D0A0A",
                             "color": JF["text"],
-                        },
-                        {
-                            "if": {"state": "selected"},
-                            "backgroundColor": JF["accent_dark"],
                         },
                     ],
                     sort_action="native",
