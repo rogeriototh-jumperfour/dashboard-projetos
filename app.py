@@ -590,7 +590,6 @@ def update_dashboard(statuses, estagios, responsaveis, tags_plano, tags_prazo,
     merged_resps = responsaveis if responsaveis else None
 
     if trigger_id == "btn-clear":
-        statuses = None
         estagios = None
         responsaveis = None
         tags_plano = None
