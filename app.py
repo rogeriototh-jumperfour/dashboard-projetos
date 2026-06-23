@@ -469,17 +469,22 @@ def populate_filters_and_info(_n):
      Input("dd-responsavel", "value"),
      Input("dd-tags", "value"),
      Input("chk-ocultar-concluidos", "value"),
-     Input("store-click-plano", "data"),
-     Input("store-click-prazo", "data"),
-     Input("store-click-estagio", "data"),
-     Input("store-click-responsavel", "data"),
+     Input("chart-plano", "clickData"),
+     Input("chart-prazo", "clickData"),
+     Input("chart-estagio", "clickData"),
+     Input("chart-responsavel", "clickData"),
      Input("btn-clear", "n_clicks"),
      Input("btn-update", "n_clicks")],
+    [State("store-click-plano", "data"),
+     State("store-click-prazo", "data"),
+     State("store-click-estagio", "data"),
+     State("store-click-responsavel", "data")],
     prevent_initial_call=False,
 )
 def update_dashboard(estagios, responsaveis, tags, ocultar_val,
-                         click_plano, click_prazo, click_estagio, click_resp,
-                         _clear, _update):
+                         click_plano_data, click_prazo_data, click_estagio_data, click_resp_data,
+                         _clear, _update,
+                         store_plano, store_prazo, store_estagio, store_resp):
     ocultar = "ocultar" in (ocultar_val or [])
     ctx = dash.callback_context
     trigger_id = ctx.triggered[0]["prop_id"].split(".")[0] if ctx.triggered else ""
@@ -494,55 +499,36 @@ def update_dashboard(estagios, responsaveis, tags, ocultar_val,
         click_estagio = None
         click_resp = None
 
-    # Toggle: if clicked same value, clear it
+    # Extract clicked label from whichever chart was clicked (toggle behavior)
     if trigger_id in ("chart-plano", "chart-prazo", "chart-estagio", "chart-responsavel"):
-        clicked_chart = trigger_id
-        # Extract the clicked label from triggered input
         trig = ctx.triggered[0]
-        val = trig.get("value", {})
-        points = (val or {}).get("points", [])
+        val = trig.get("value", {}) or {}
+        points = val.get("points", [])
         clicked_label = points[0].get("label") if points else None
         if not clicked_label:
             clicked_label = points[0].get("x") if points else None
 
-        if clicked_chart == "chart-plano":
-            if click_plano == clicked_label:
-                click_plano = None
-            else:
-                click_plano = clicked_label
-        elif clicked_chart == "chart-prazo":
-            if click_prazo == clicked_label:
-                click_prazo = None
-            else:
-                click_prazo = clicked_label
-        elif clicked_chart == "chart-estagio":
-            # toggle logic: if already in estagios list, remove; otherwise add
-            if click_estagio == clicked_label:
-                click_estagio = None
-            else:
-                click_estagio = clicked_label
-        elif clicked_chart == "chart-responsavel":
-            if click_resp == clicked_label:
-                click_resp = None
-            else:
-                click_resp = clicked_label
+        if trigger_id == "chart-plano":
+            store_plano = None if store_plano == clicked_label else clicked_label
+        elif trigger_id == "chart-prazo":
+            store_prazo = None if store_prazo == clicked_label else clicked_label
+        elif trigger_id == "chart-estagio":
+            store_estagio = None if store_estagio == clicked_label else clicked_label
+        elif trigger_id == "chart-responsavel":
+            store_resp = None if store_resp == clicked_label else clicked_label
 
     # Merge click filters with dropdown filters
     click_tags = []
-    if click_plano:
-        click_tags.append(f"Plano:{click_plano}")
-    if click_prazo:
-        click_tags.append(f"Prazo:{click_prazo}")
+    if store_plano:
+        click_tags.append(f"Plano:{store_plano}")
+    if store_prazo:
+        click_tags.append(f"Prazo:{store_prazo}")
     if click_tags:
         tags = (tags or []) + click_tags
 
-    click_estagios = [click_estagio] if click_estagio else None
-
-    click_resps = [click_resp] if click_resp else None
-
     # Merge with dropdown values (click overrides take precedence)
-    merged_estagios = click_estagios if click_estagios else (estagios if estagios else None)
-    merged_resps = click_resps if click_resps else (responsaveis if responsaveis else None)
+    merged_estagios = store_estagio if store_estagio else (estagios if estagios else None)
+    merged_resps = store_resp if store_resp else (responsaveis if responsaveis else None)
 
     if trigger_id == "btn-update":
         # Run import BEFORE loading data
@@ -556,8 +542,8 @@ def update_dashboard(estagios, responsaveis, tags, ocultar_val,
             pass
 
     df = load_data(
-        estagios=estagios if estagios else None,
-        responsaveis=responsaveis if responsaveis else None,
+        estagios=merged_estagios,
+        responsaveis=merged_resps,
         tags=tags if tags else None,
         ocultar_concluidos=ocultar,
     )
@@ -592,6 +578,7 @@ def update_dashboard(estagios, responsaveis, tags, ocultar_val,
              kpi_card("0", "AT RISK", JF["at_risk"])],
             subtitle, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig,
             [], [],
+            None, None, None, None,
         )
 
     # KPI cards
@@ -671,10 +658,18 @@ def update_dashboard(estagios, responsaveis, tags, ocultar_val,
     ]
     data = table_df.to_dict("records")
 
+    # Reset stores on btn-clear
+    if trigger_id == "btn-clear":
+        store_plano = None
+        store_prazo = None
+        store_estagio = None
+        store_resp = None
+
     return (kpis, subtitle,
             fig_status, fig_plano, fig_prazo,
             fig_estagio, fig_resp,
-            columns, data)
+            columns, data,
+            store_plano, store_prazo, store_estagio, store_resp)
 
 
 # ─── Main ─────────────────────────────────────────────────────
