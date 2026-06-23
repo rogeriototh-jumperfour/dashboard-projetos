@@ -23,7 +23,7 @@ HOST = "0.0.0.0"
 PORT = 8050
 
 # ─── JumperFour Brand Colors ──────────────────────────────────
-JF = TEMA = {
+TEMA = {
     "bg": "#032B34",
     "bg_card": "#1A3A44",
     "bg_sidebar": "#032B34",
@@ -155,7 +155,7 @@ def get_filter_options():
     conn = get_db()
     cur = conn.cursor()
 
-    options = TEMA = {}
+    options = {}
 
     # Status
     cur.execute(f"SELECT DISTINCT p.status_atualizacao FROM dash_projetos p ORDER BY p.status_atualizacao")
@@ -221,7 +221,7 @@ def chart_status(df, hidden=None):
     """Barra única horizontal com chunks proporcionais por status"""
     hidden = hidden or []
     counts = df["status_atualizacao"].value_counts()
-    colors_map = TEMA = {"On Track": "#27AE60", "Off Track": "#E74C3C",
+    colors_map = {"On Track": "#27AE60", "Off Track": "#E74C3C",
                   "At Risk": "#E67E22", "On Hold": "#3498DB", "Set Status": "#95A5A6", "Done": "#8E44AD"}
 
     fig = go.Figure()
@@ -644,7 +644,7 @@ def update_dashboard(statuses, estagios, responsaveis, tags_plano, tags_prazo,
         fig_status = chart_status(df, hidden_status)
         plano_vals = flatten_tags(df, "tags_plano")
         plano_counts = pd.Series(plano_vals).value_counts()
-        plano_tag_colors = TEMA = {"Preparar": "#3498DB", "Atraso": "#E74C3C",
+        plano_tag_colors = {"Preparar": "#3498DB", "Atraso": "#E74C3C",
                               "Sem datas": "#F39C12", "Sem tarefas": "#D4A017",
                               "Sem responsáveis": "#F39C12", "Resp. em Tarefa Resumo": "#D4A017",
                               "OK": "#27AE60"}
@@ -666,7 +666,7 @@ def update_dashboard(statuses, estagios, responsaveis, tags_plano, tags_prazo,
                         itemclick=False), showlegend=True)
         prazo_vals = flatten_tags(df, "tags_prazo")
         prazo_counts = pd.Series(prazo_vals).value_counts()
-        prazo_tag_colors = TEMA = {"Atrasado": "#E74C3C", "<=7 dias": "#E67E22",
+        prazo_tag_colors = {"Atrasado": "#E74C3C", "<=7 dias": "#E67E22",
                               "<=30 dias": "#F39C12", "Em dia": "#27AE60"}
         fig_prazo = go.Figure()
         for val in prazo_tag_colors:
