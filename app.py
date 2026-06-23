@@ -23,7 +23,7 @@ HOST = "0.0.0.0"
 PORT = 8050
 
 # ─── JumperFour Brand Colors ──────────────────────────────────
-JF = {
+JF = TEMA = {
     "bg": "#032B34",
     "bg_card": "#1A3A44",
     "bg_sidebar": "#032B34",
@@ -155,7 +155,7 @@ def get_filter_options():
     conn = get_db()
     cur = conn.cursor()
 
-    options = {}
+    options = TEMA = {}
 
     # Status
     cur.execute(f"SELECT DISTINCT p.status_atualizacao FROM dash_projetos p ORDER BY p.status_atualizacao")
@@ -206,22 +206,22 @@ def kpi_card(value, label, color):
             "fontFamily": "Arial Black, Arial, sans-serif"
         }),
         html.Div(label, style={
-            "fontSize": 13, "color": JF["text_muted"],
+            "fontSize": 13, "color": TEMA["text_muted"],
             "textTransform": "uppercase", "letterSpacing": "1px",
             "marginTop": 4
         }),
     ], style={
-        "background": JF["bg_card"],
+        "background": TEMA["bg_card"],
         "borderRadius": 12, "padding": "20px 24px",
         "textAlign": "center", "flex": "1",
-        "border": f"1px solid {JF['border']}",
+        "border": f"1px solid {TEMA['border']}",
     })
 
 def chart_status(df, hidden=None):
     """Barra única horizontal com chunks proporcionais por status"""
     hidden = hidden or []
     counts = df["status_atualizacao"].value_counts()
-    colors_map = {"On Track": "#27AE60", "Off Track": "#E74C3C",
+    colors_map = TEMA = {"On Track": "#27AE60", "Off Track": "#E74C3C",
                   "At Risk": "#E67E22", "On Hold": "#3498DB", "Set Status": "#95A5A6", "Done": "#8E44AD"}
 
     fig = go.Figure()
@@ -233,7 +233,7 @@ def chart_status(df, hidden=None):
             x=[cnt],
             y=[""],
             orientation="h",
-            marker=dict(color=colors_map.get(status, JF["text_muted"])),
+            marker=dict(color=colors_map.get(status, TEMA["text_muted"])),
             text=str(cnt),
             textposition="inside",
             textfont=dict(color="#fff", size=14, weight=700),
@@ -242,7 +242,7 @@ def chart_status(df, hidden=None):
 
     fig.update_layout(
         uirevision=True, barmode="stack",
-        title=dict(text="STATUS", font=dict(color=JF["text_bright"], size=16), x=0.5),
+        title=dict(text="STATUS", font=dict(color=TEMA["text_bright"], size=16), x=0.5),
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
         margin=dict(t=40, b=50, l=10, r=10),
         height=240,
@@ -253,7 +253,7 @@ def chart_status(df, hidden=None):
             orientation="h",
             yanchor="top", y=-0.3,
             xanchor="center", x=0.5,
-            font=dict(color=JF["text"], size=11),
+            font=dict(color=TEMA["text"], size=11),
             bgcolor="rgba(0,0,0,0)",
             itemclick=False,
         ),
@@ -273,13 +273,13 @@ def chart_tag_values(all_vals, title, color):
         marker=dict(color=color),
         text=counts.values.tolist(),
         textposition="outside",
-        textfont=dict(color=JF["text"], size=11),
+        textfont=dict(color=TEMA["text"], size=11),
     )])
     fig.update_layout(
-        title=dict(text=title, font=dict(color=JF["text_bright"], size=14), x=0.5),
+        title=dict(text=title, font=dict(color=TEMA["text_bright"], size=14), x=0.5),
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
         xaxis=dict(showgrid=False, visible=False),
-        yaxis=dict(showgrid=False, color=JF["text"], tickfont=dict(size=11)),
+        yaxis=dict(showgrid=False, color=TEMA["text"], tickfont=dict(size=11)),
         margin=dict(t=40, b=10, l=10, r=40),
         height=280,
     )
@@ -298,8 +298,8 @@ def flatten_tags(df, col):
 # ─── Helpers ──────────────────────────────────────────────────
 def chart_card(graph_component):
     return html.Div([graph_component], style={
-        "background": JF["bg_card"], "borderRadius": 12,
-        "padding": 8, "border": f"1px solid {JF['border']}",
+        "background": TEMA["bg_card"], "borderRadius": 12,
+        "padding": 8, "border": f"1px solid {TEMA['border']}",
     })
 
 # ─── App Layout ──────────────────────────────────────────────
@@ -312,43 +312,43 @@ app.layout = html.Div([
         html.Div([
             html.Div([
                 html.Img(src="/assets/logo-jumperfour.png", style={
-                    "height": 40, "marginBottom": 4,
+                    "height": 40, "marginBottom": 8,
                 }),
-                html.Div("Dashboard Projetos", style={
-                    "fontSize": 14, "color": JF["text_muted"],
+                html.Div("JumperFour", style={
+                    "fontSize": 14, "color": TEMA["text_muted"],
                     "marginTop": 2,
                 }),
                 html.Div(id="sidebar-subtitle", style={
-                    "fontSize": 11, "color": JF["text_muted"],
+                    "fontSize": 11, "color": TEMA["text_muted"],
                     "marginTop": 8, "fontStyle": "italic",
                 }),
-            ], style={"padding": "24px 20px", "borderBottom": f"1px solid {JF['border']}"}),
+            ], style={"padding": "24px 20px", "borderBottom": f"1px solid {TEMA['border']}"}),
 
             # Filters
             html.Div([
-                html.Label("Status", style={"color": JF["text_muted"], "fontSize": 11, "textTransform": "uppercase", "letterSpacing": "1px"}),
+                html.Label("Status", style={"color": TEMA["text_muted"], "fontSize": 11, "textTransform": "uppercase", "letterSpacing": "1px"}),
                 dcc.Dropdown(id="dd-status", multi=True,
                     style={"marginTop": 6, "color": "#333", "fontSize": 13}),
             ], style={"padding": "16px 20px 8px"}),
 
             html.Div([
-                html.Label("Estágio", style={"color": JF["text_muted"], "fontSize": 11, "textTransform": "uppercase", "letterSpacing": "1px"}),
+                html.Label("Estágio", style={"color": TEMA["text_muted"], "fontSize": 11, "textTransform": "uppercase", "letterSpacing": "1px"}),
                 dcc.Dropdown(id="dd-estagio", multi=True,
                     style={"marginTop": 6, "color": "#333", "fontSize": 13}),
             ], style={"padding": "16px 20px 8px"}),
 
             html.Div([
-                html.Label("Responsável", style={"color": JF["text_muted"], "fontSize": 11, "textTransform": "uppercase", "letterSpacing": "1px"}),
+                html.Label("Responsável", style={"color": TEMA["text_muted"], "fontSize": 11, "textTransform": "uppercase", "letterSpacing": "1px"}),
                 dcc.Dropdown(id="dd-responsavel", multi=True, style={"marginTop": 6, "color": "#333", "fontSize": 13}),
             ], style={"padding": "8px 20px"}),
 
             html.Div([
-                html.Label("Plano", style={"color": JF["text_muted"], "fontSize": 11, "textTransform": "uppercase", "letterSpacing": "1px"}),
+                html.Label("Plano", style={"color": TEMA["text_muted"], "fontSize": 11, "textTransform": "uppercase", "letterSpacing": "1px"}),
                 dcc.Dropdown(id="dd-tags-plano", multi=True, style={"marginTop": 6, "color": "#333", "fontSize": 13}),
             ], style={"padding": "8px 20px 4px"}),
 
             html.Div([
-                html.Label("Prazo", style={"color": JF["text_muted"], "fontSize": 11, "textTransform": "uppercase", "letterSpacing": "1px"}),
+                html.Label("Prazo", style={"color": TEMA["text_muted"], "fontSize": 11, "textTransform": "uppercase", "letterSpacing": "1px"}),
                 dcc.Dropdown(id="dd-tags-prazo", multi=True, style={"marginTop": 6, "color": "#333", "fontSize": 13}),
             ], style={"padding": "4px 20px 8px"}),
 
@@ -356,8 +356,8 @@ app.layout = html.Div([
 
             html.Div([
                 html.Button("↺ Limpar Filtros", id="btn-clear", style={
-                    "background": "transparent", "border": f"1px solid {JF['border']}",
-                    "color": JF["text_muted"], "padding": "8px 16px",
+                    "background": "transparent", "border": f"1px solid {TEMA['border']}",
+                    "color": TEMA["text_muted"], "padding": "8px 16px",
                     "borderRadius": 8, "cursor": "pointer",
                     "fontSize": 12, "width": "100%",
                 }),
@@ -365,7 +365,7 @@ app.layout = html.Div([
 
             html.Div([
                 html.Span("v0.1.0", style={
-                    "color": JF["text_muted"], "fontSize": 10,
+                    "color": TEMA["text_muted"], "fontSize": 10,
                     "opacity": 0.5,
                 }),
             ], style={"padding": "8px 20px 16px"}),
@@ -374,18 +374,18 @@ app.layout = html.Div([
 
             html.Div([
                 html.Button("⟳ Atualizar Dados", id="btn-update", style={
-                    "background": JF["accent"], "border": "none",
+                    "background": TEMA["accent"], "border": "none",
                     "color": "#fff", "padding": "12px 20px",
                     "borderRadius": 10, "cursor": "pointer",
                     "fontSize": 14, "fontWeight": 700,
                     "width": "100%",
                 }),
-            ], style={"padding": "16px 20px 24px", "borderTop": f"1px solid {JF['border']}"}),
+            ], style={"padding": "16px 20px 24px", "borderTop": f"1px solid {TEMA['border']}"}),
 
         ], style={
             "width": 280, "minWidth": 280,
-            "background": JF["bg_sidebar"],
-            "borderRight": f"1px solid {JF['border']}",
+            "background": TEMA["bg_sidebar"],
+            "borderRight": f"1px solid {TEMA['border']}",
             "display": "flex", "flexDirection": "column",
             "height": "100vh", "overflowY": "auto",
         }),
@@ -394,11 +394,11 @@ app.layout = html.Div([
         html.Div([
             html.Div([
                 html.H1("Dashboard de Projetos", style={
-                    "color": JF["text_bright"], "fontSize": 24,
+                    "color": TEMA["text_bright"], "fontSize": 24,
                     "fontWeight": 700, "margin": 0,
                 }),
                 html.Div(id="header-subtitle", style={
-                    "color": JF["text_muted"], "fontSize": 13,
+                    "color": TEMA["text_muted"], "fontSize": 13,
                     "marginTop": 4,
                 }),
             ], style={"padding": "24px 32px 8px"}),
@@ -420,7 +420,7 @@ app.layout = html.Div([
             # Table
             html.Div([
                 html.H3("Projetos", style={
-                    "color": JF["text_bright"], "fontSize": 16,
+                    "color": TEMA["text_bright"], "fontSize": 16,
                     "margin": "0 0 12px 0",
                 }),
                 dash_table.DataTable(
@@ -428,7 +428,7 @@ app.layout = html.Div([
                     page_size=15,
                     style_table={"overflowY": "auto"},
                     style_header={
-                        "background": JF["accent"],
+                        "background": TEMA["accent"],
                         "color": "#fff",
                         "fontWeight": 700,
                         "fontSize": 14,
@@ -437,11 +437,11 @@ app.layout = html.Div([
                         "textAlign": "center",
                     },
                     style_data={
-                        "background": JF["bg_card"],
-                        "color": JF["text"],
+                        "background": TEMA["bg_card"],
+                        "color": TEMA["text"],
                         "fontSize": 12,
                         "padding": "6px 10px",
-                        "border": f"1px solid {JF['border']}",
+                        "border": f"1px solid {TEMA['border']}",
                         "fontFamily": "Arial, sans-serif",
                         "whiteSpace": "normal",
                         "height": "auto",
@@ -459,18 +459,18 @@ app.layout = html.Div([
                     style_data_conditional=[
                         {
                             "if": {},
-                            "backgroundColor": JF["bg_card"],
-                            "color": JF["text"],
+                            "backgroundColor": TEMA["bg_card"],
+                            "color": TEMA["text"],
                         },
                         {
                             "if": {"filter_query": '{status_atualizacao} = "Off Track"'},
                             "backgroundColor": "#3D2E0A",
-                            "color": JF["text"],
+                            "color": TEMA["text"],
                         },
                         {
                             "if": {"filter_query": '{status_atualizacao} = "At Risk"'},
                             "backgroundColor": "#3D0A0A",
-                            "color": JF["text"],
+                            "color": TEMA["text"],
                         },
                     ],
                     sort_action="native",
@@ -481,7 +481,7 @@ app.layout = html.Div([
 
         ], style={
             "flex": 1,
-            "background": JF["bg"],
+            "background": TEMA["bg"],
             "overflowY": "auto",
             "height": "100vh",
         }),
@@ -644,7 +644,7 @@ def update_dashboard(statuses, estagios, responsaveis, tags_plano, tags_prazo,
         fig_status = chart_status(df, hidden_status)
         plano_vals = flatten_tags(df, "tags_plano")
         plano_counts = pd.Series(plano_vals).value_counts()
-        plano_tag_colors = {"Preparar": "#3498DB", "Atraso": "#E74C3C",
+        plano_tag_colors = TEMA = {"Preparar": "#3498DB", "Atraso": "#E74C3C",
                               "Sem datas": "#F39C12", "Sem tarefas": "#D4A017",
                               "Sem responsáveis": "#F39C12", "Resp. em Tarefa Resumo": "#D4A017",
                               "OK": "#27AE60"}
@@ -657,16 +657,16 @@ def update_dashboard(statuses, estagios, responsaveis, tags_plano, tags_prazo,
                     text=str(cnt), textposition="inside", textfont=dict(color="#fff", size=13, weight=700),
                     hovertemplate=f"{val}: {cnt}<extra></extra>"))
         fig_plano.update_layout(uirevision=True, barmode="stack", height=240,
-            title=dict(text="Qualidade do PLANO", font=dict(color=JF["text_bright"], size=16), x=0.5),
+            title=dict(text="Qualidade do PLANO", font=dict(color=TEMA["text_bright"], size=16), x=0.5),
             paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
             margin=dict(t=40, b=60, l=10, r=10),
             xaxis=dict(showgrid=False, visible=False), yaxis=dict(showgrid=False, visible=False),
             legend=dict(orientation="h", yanchor="top", y=-0.5, xanchor="center", x=0.5,
-                        font=dict(color=JF["text"], size=10), bgcolor="rgba(0,0,0,0)",
+                        font=dict(color=TEMA["text"], size=10), bgcolor="rgba(0,0,0,0)",
                         itemclick=False), showlegend=True)
         prazo_vals = flatten_tags(df, "tags_prazo")
         prazo_counts = pd.Series(prazo_vals).value_counts()
-        prazo_tag_colors = {"Atrasado": "#E74C3C", "<=7 dias": "#E67E22",
+        prazo_tag_colors = TEMA = {"Atrasado": "#E74C3C", "<=7 dias": "#E67E22",
                               "<=30 dias": "#F39C12", "Em dia": "#27AE60"}
         fig_prazo = go.Figure()
         for val in prazo_tag_colors:
@@ -677,12 +677,12 @@ def update_dashboard(statuses, estagios, responsaveis, tags_plano, tags_prazo,
                     text=str(cnt), textposition="inside", textfont=dict(color="#fff", size=13, weight=700),
                     hovertemplate=f"{val}: {cnt}<extra></extra>"))
         fig_prazo.update_layout(uirevision=True, barmode="stack", height=240,
-            title=dict(text="PRAZO", font=dict(color=JF["text_bright"], size=16), x=0.5),
+            title=dict(text="PRAZO", font=dict(color=TEMA["text_bright"], size=16), x=0.5),
             paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
             margin=dict(t=40, b=50, l=10, r=10),
             xaxis=dict(showgrid=False, visible=False), yaxis=dict(showgrid=False, visible=False),
             legend=dict(orientation="h", yanchor="top", y=-0.3, xanchor="center", x=0.5,
-                                font=dict(color=JF["text"], size=10), bgcolor="rgba(0,0,0,0)",
+                                font=dict(color=TEMA["text"], size=10), bgcolor="rgba(0,0,0,0)",
                                 itemclick=False), showlegend=True)
 
     # Table data
@@ -715,11 +715,11 @@ def update_dashboard(statuses, estagios, responsaveis, tags_plano, tags_prazo,
 
     # KPIs
     if df.empty:
-        kpis = [kpi_card("0", "TOTAL", JF["text"]), kpi_card("0", "ON TRACK", JF["on_track"]),
-                kpi_card("0", "OFF TRACK", JF["off_track"]), kpi_card("0", "AT RISK", JF["at_risk"])]
+        kpis = [kpi_card("0", "TOTAL", TEMA["text"]), kpi_card("0", "ON TRACK", TEMA["on_track"]),
+                kpi_card("0", "OFF TRACK", TEMA["off_track"]), kpi_card("0", "AT RISK", TEMA["at_risk"])]
     else:
-        kpis = [kpi_card(str(total), "TOTAL", JF["text"]), kpi_card(str(on_track), "ON TRACK", JF["on_track"]),
-                kpi_card(str(off_track), "OFF TRACK", JF["off_track"]), kpi_card(str(at_risk), "AT RISK", JF["at_risk"])]
+        kpis = [kpi_card(str(total), "TOTAL", TEMA["text"]), kpi_card(str(on_track), "ON TRACK", TEMA["on_track"]),
+                kpi_card(str(off_track), "OFF TRACK", TEMA["off_track"]), kpi_card(str(at_risk), "AT RISK", TEMA["at_risk"])]
 
     return (kpis, subtitle,
             fig_status, fig_plano, fig_prazo,
