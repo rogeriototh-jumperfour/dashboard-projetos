@@ -7,8 +7,12 @@
 CREATE TABLE IF NOT EXISTS dash_extracoes (
     id              SERIAL PRIMARY KEY,
     filename        VARCHAR(255) NOT NULL,
+    file_mtime      TIMESTAMP,
+    file_size       BIGINT,
     imported_at     TIMESTAMP DEFAULT NOW(),
-    row_count       INTEGER DEFAULT 0
+    row_count       INTEGER DEFAULT 0,
+    updated_count   INTEGER DEFAULT 0,
+    inserted_count  INTEGER DEFAULT 0
 );
 
 -- ============================================================
@@ -32,6 +36,7 @@ CREATE TABLE IF NOT EXISTS dash_projetos (
     created_at          TIMESTAMP DEFAULT NOW()
 );
 
+CREATE UNIQUE INDEX IF NOT EXISTS idx_dash_projetos_ext_id ON dash_projetos(external_id);
 CREATE INDEX IF NOT EXISTS idx_dash_projetos_estagio   ON dash_projetos(estagio);
 CREATE INDEX IF NOT EXISTS idx_dash_projetos_resp       ON dash_projetos(responsavel);
 CREATE INDEX IF NOT EXISTS idx_dash_projetos_status     ON dash_projetos(status_atualizacao);

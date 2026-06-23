@@ -91,24 +91,52 @@ def do_import(conn, path):
         cur.close()
         return None
 
-    # ── REPLACE: truncate + insert ──
-    cur.execute("TRUNCATE dash_projetos")
-
-    execute_values(cur, """
+    # ── UPSERT: update existing + insert new (keep unmatched) ──
+    upsert_sql = """
         INSERT INTO dash_projetos
             (external_id, active, nome, responsavel,
              estagio, data_inicio, data_fim, status_atualizacao, tags_raw, tags_jsonb)
         VALUES %s
-    """, projetos)
+        ON CONFLICT (external_id) DO UPDATE SET
+            active = EXCLUDED.active,
+            nome = EXCLUDED.nome,
+            responsavel = EXCLUDED.responsavel,
+            estagio = EXCLUDED.estagio,
+            data_inicio = EXCLUDED.data_inicio,
+            data_fim = EXCLUDED.data_fim,
+            status_atualizacao = EXCLUDED.status_atualizacao,
+            tags_raw = EXCLUDED.tags_raw,
+            tags_jsonb = EXCLUDED.tags_jsonb
+    """
+
+    # Count before
+    cur.execute("SELECT COUNT(*) FROM dash_projetos")
+    count_before = cur.fetchone()[0]
+
+    execute_values(cur, upsert_sql, projetos)
+
+    # Count after
+    cur.execute("SELECT COUNT(*) FROM dash_projetos")
+    count_after = cur.fetchone()[0]
+
+    inserted = count_after - count_before
+    updated = len(projetos) - inserted
+
+    # File metadata
+    fstat = os.stat(path)
+    file_mtime = datetime.fromtimestamp(fstat.st_mtime)
+    file_size = fstat.st_size
 
     cur.execute(
-        "INSERT INTO dash_extracoes (filename, row_count) VALUES (%s, %s)",
-        (basename, len(projetos))
+        """INSERT INTO dash_extracoes
+            (filename, file_mtime, file_size, row_count, updated_count, inserted_count)
+            VALUES (%s, %s, %s, %s, %s, %s)""",
+        (basename, file_mtime, file_size, len(projetos), updated, inserted)
     )
 
     conn.commit()
     cur.close()
-    print(f"  ✓ Replaced: {basename} ({len(projetos)} rows)")
+    print(f"  ✓ Imported: {basename} ({len(projetos)} rows: {updated} updated, {inserted} inserted)")
     return (basename, len(projetos))
 
 

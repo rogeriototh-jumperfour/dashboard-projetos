@@ -49,14 +49,14 @@ def get_db():
 def get_last_extracao():
     conn = get_db()
     cur = conn.cursor()
-    cur.execute("SELECT filename, imported_at, row_count FROM dash_extracoes ORDER BY imported_at DESC LIMIT 1")
+    cur.execute("SELECT filename, file_mtime, row_count FROM dash_extracoes ORDER BY imported_at DESC LIMIT 1")
     row = cur.fetchone()
     cur.close()
     conn.close()
     return row
 
 
-def load_data(estagios=None, responsaveis=None, tags=None, ocultar_concluidos=True,
+def load_data(estagios=None, responsaveis=None, tags=None,
               excluir_status=None, excluir_plano=None, excluir_prazo=None,
               statuses=None):
     """Load filtered data from DB. Returns a DataFrame."""
@@ -91,10 +91,6 @@ def load_data(estagios=None, responsaveis=None, tags=None, ocultar_concluidos=Tr
         if tag_conditions:
             where.append("(" + " OR ".join(tag_conditions) + ")")
 
-    if ocultar_concluidos:
-        where.append("p.estagio != 'Done'")
-
-    # Legend-based exclusions (NOT IN / NOT EXISTS)
     if excluir_status:
         where.append("p.status_atualizacao != ALL(%s)")
         params.append(excluir_status)
@@ -335,16 +331,7 @@ app.layout = html.Div([
                 dcc.Dropdown(id="dd-tags-prazo", multi=True, style={"marginTop": 6, "color": "#333", "fontSize": 13}),
             ], style={"padding": "4px 20px 8px"}),
 
-            html.Div([
-                dcc.Checklist(
-                    id="chk-ocultar-concluidos",
-                    options=[{"label": " Ocultar concluídos", "value": "ocultar"}],
-                    value=["ocultar"],
-                    style={"color": JF["text"], "fontSize": 13},
-                    labelStyle={"display": "flex", "alignItems": "center", "gap": 6},
-                    inputStyle={"accentColor": JF["accent"]},
-                ),
-            ], style={"padding": "4px 20px 16px"}),
+            # Ocultar concluídos removido (usar filtro STATUS)
 
             html.Div([
                 html.Button("↺ Limpar Filtros", id="btn-clear", style={
@@ -496,9 +483,10 @@ app.layout = html.Div([
      Output("dd-tags-prazo", "value"),
      Output("sidebar-subtitle", "children")],
     Input("btn-update", "n_clicks"),
+    Input("btn-clear", "n_clicks"),
     prevent_initial_call=False,
 )
-def populate_filters_and_info(_n):
+def populate_filters_and_info(_update, _clear):
     opts = get_filter_options()
     status_options = [{"label": s, "value": s} for s in opts["status"]]
     est_options = [{"label": s, "value": s} for s in opts["estagios"]]
@@ -540,7 +528,6 @@ def populate_filters_and_info(_n):
      Input("dd-responsavel", "value"),
      Input("dd-tags-plano", "value"),
      Input("dd-tags-prazo", "value"),
-     Input("chk-ocultar-concluidos", "value"),
      Input("store-hidden-status", "data"),
      Input("store-hidden-plano", "data"),
      Input("store-hidden-prazo", "data"),
@@ -548,10 +535,9 @@ def populate_filters_and_info(_n):
      Input("btn-update", "n_clicks")],
     prevent_initial_call=False,
 )
-def update_dashboard(statuses, estagios, responsaveis, tags_plano, tags_prazo, ocultar_val,
+def update_dashboard(statuses, estagios, responsaveis, tags_plano, tags_prazo,
                          hidden_status, hidden_plano, hidden_prazo,
                          _clear, _update):
-    ocultar = "ocultar" in (ocultar_val or [])
     ctx = dash.callback_context
     trigger_id = ctx.triggered[0]["prop_id"].split(".")[0] if ctx.triggered else ""
 
@@ -595,7 +581,6 @@ def update_dashboard(statuses, estagios, responsaveis, tags_plano, tags_prazo, o
         estagios=merged_estagios,
         responsaveis=merged_resps,
         tags=tags,
-        ocultar_concluidos=ocultar,
         excluir_status=hidden_status if hidden_status else None,
         excluir_plano=hidden_plano if hidden_plano else None,
         excluir_prazo=hidden_prazo if hidden_prazo else None,
@@ -675,6 +660,7 @@ def update_dashboard(statuses, estagios, responsaveis, tags_plano, tags_prazo, o
                         "data_inicio", "data_fim", "tags_raw"]].copy()
         table_df["data_inicio"] = table_df["data_inicio"].astype(str)
         table_df["data_fim"] = table_df["data_fim"].astype(str)
+
         columns = [
             {"name": "Projeto", "id": "nome"},
             {"name": "Responsável", "id": "responsavel"},
@@ -685,6 +671,14 @@ def update_dashboard(statuses, estagios, responsaveis, tags_plano, tags_prazo, o
             {"name": "Tags", "id": "tags_raw"},
         ]
         data = table_df.to_dict("records")
+
+        # Filter tags to show only Plano and Prazo
+        for row in data:
+            raw = row.get("tags_raw", "")
+            if raw:
+                tags = raw.split(",")
+                filtered = [t.strip() for t in tags if t.strip().startswith(("Plano:", "Prazo:"))]
+                row["tags_raw"] = ", ".join(filtered)
 
     # KPIs
     if df.empty:
