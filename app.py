@@ -34,9 +34,9 @@ JF = {
     "text": "#E1E1E1",
     "text_muted": "#8AA0A8",
     "text_bright": "#FFFFFF",
-    "on_track": "#A6E17D",
-    "off_track": "#D4A017",
-    "at_risk": "#C0392B",
+    "on_track": "#27AE60",
+    "off_track": "#E74C3C",
+    "at_risk": "#E67E22",
     "chart_seq": ["#A6E17D", "#338F5C", "#395A31", "#2A3842", "#D4A017", "#C0392B"],
 }
 
@@ -195,7 +195,7 @@ def chart_status(df):
         margin=dict(t=40, b=50, l=10, r=10),
         height=200,
         xaxis=dict(showgrid=False, visible=False),
-        yaxis=dict(showgrid=False, visible=False, range=[-0.5, 0.5]),
+        yaxis=dict(showgrid=False, visible=False),
         legend=dict(
             orientation="h",
             yanchor="top", y=-0.3,
@@ -274,7 +274,9 @@ app.layout = html.Div([
             # Filters
             html.Div([
                 html.Label("Estágio", style={"color": JF["text_muted"], "fontSize": 11, "textTransform": "uppercase", "letterSpacing": "1px"}),
-                dcc.Dropdown(id="dd-estagio", multi=True, style={"marginTop": 6, "color": "#333", "fontSize": 13}),
+                dcc.Dropdown(id="dd-estagio", multi=True,
+                    value=["Booking", "CT - Contratos de Tecnologia", "🔄️SP/PR - Em andamento", "⏳SP/PR Em Planejamento"],
+                    style={"marginTop": 6, "color": "#333", "fontSize": 13}),
             ], style={"padding": "16px 20px 8px"}),
 
             html.Div([
@@ -352,11 +354,7 @@ app.layout = html.Div([
                 chart_card(dcc.Graph(id="chart-prazo", config={"displayModeBar": False})),
             ], style={"display": "grid", "gridTemplateColumns": "1fr 1fr 1fr", "gap": 16, "padding": "8px 32px"}),
 
-            # Charts grid row 2
-            html.Div([
-                chart_card(dcc.Graph(id="chart-estagio", config={"displayModeBar": False})),
-                chart_card(dcc.Graph(id="chart-responsavel", config={"displayModeBar": False})),
-            ], style={"display": "grid", "gridTemplateColumns": "1fr 1fr", "gap": 16, "padding": "8px 32px"}),
+            # Charts grid row 2 — removed
 
             # Table
             html.Div([
@@ -425,10 +423,9 @@ app.layout = html.Div([
         "height": "100vh", "width": "100vw",
         "fontFamily": "Arial, sans-serif",
     }),
-    dcc.Store(id="store-click-plano", data=None),
-    dcc.Store(id="store-click-prazo", data=None),
-    dcc.Store(id="store-click-estagio", data=None),
-    dcc.Store(id="store-click-responsavel", data=None),
+    dcc.Store(id="store-hidden-status", data=[]),
+    dcc.Store(id="store-hidden-plano", data=[]),
+    dcc.Store(id="store-hidden-prazo", data=[]),
 ])
 
 
@@ -436,7 +433,6 @@ app.layout = html.Div([
 
 @callback(
     [Output("dd-estagio", "options"),
-     Output("dd-estagio", "value"),
      Output("dd-responsavel", "options"),
      Output("dd-tags", "options"),
      Output("sidebar-subtitle", "children")],
@@ -463,7 +459,7 @@ def populate_filters_and_info(_n):
     else:
         subtitle = "Nenhum dado importado"
 
-    return est_options, est_value, resp_options, tag_options, subtitle
+    return est_options, resp_options, tag_options, subtitle
 
 
 @callback(
@@ -472,78 +468,44 @@ def populate_filters_and_info(_n):
      Output("chart-status", "figure"),
      Output("chart-plano", "figure"),
      Output("chart-prazo", "figure"),
-     Output("chart-estagio", "figure"),
-     Output("chart-responsavel", "figure"),
      Output("table-projetos", "columns"),
      Output("table-projetos", "data"),
-     Output("store-click-plano", "data"),
-     Output("store-click-prazo", "data"),
-     Output("store-click-estagio", "data"),
-     Output("store-click-responsavel", "data")],
+     Output("store-hidden-status", "data"),
+     Output("store-hidden-plano", "data"),
+     Output("store-hidden-prazo", "data")],
     [Input("dd-estagio", "value"),
      Input("dd-responsavel", "value"),
      Input("dd-tags", "value"),
      Input("chk-ocultar-concluidos", "value"),
-     Input("chart-plano", "clickData"),
-     Input("chart-prazo", "clickData"),
-     Input("chart-estagio", "clickData"),
-     Input("chart-responsavel", "clickData"),
+     Input("store-hidden-status", "data"),
+     Input("store-hidden-plano", "data"),
+     Input("store-hidden-prazo", "data"),
      Input("btn-clear", "n_clicks"),
      Input("btn-update", "n_clicks")],
-    [State("store-click-plano", "data"),
-     State("store-click-prazo", "data"),
-     State("store-click-estagio", "data"),
-     State("store-click-responsavel", "data")],
     prevent_initial_call=False,
 )
 def update_dashboard(estagios, responsaveis, tags, ocultar_val,
-                         click_plano_data, click_prazo_data, click_estagio_data, click_resp_data,
-                         _clear, _update,
-                         store_plano, store_prazo, store_estagio, store_resp):
+                         hidden_status, hidden_plano, hidden_prazo,
+                         _clear, _update):
     ocultar = "ocultar" in (ocultar_val or [])
     ctx = dash.callback_context
     trigger_id = ctx.triggered[0]["prop_id"].split(".")[0] if ctx.triggered else ""
 
-    # Apply click-based filters (overlay on dropdown filters)
+    # Apply legend-based exclusion filters
+    hidden_status = hidden_status or []
+    hidden_plano = hidden_plano or []
+    hidden_prazo = hidden_prazo or []
+
     if trigger_id == "btn-clear":
         estagios = None
         responsaveis = None
         tags = None
-        click_plano = None
-        click_prazo = None
-        click_estagio = None
-        click_resp = None
+        hidden_status = []
+        hidden_plano = []
+        hidden_prazo = []
 
-    # Extract clicked label from whichever chart was clicked (toggle behavior)
-    if trigger_id in ("chart-plano", "chart-prazo", "chart-estagio", "chart-responsavel"):
-        trig = ctx.triggered[0]
-        val = trig.get("value", {}) or {}
-        points = val.get("points", [])
-        clicked_label = points[0].get("label") if points else None
-        if not clicked_label:
-            clicked_label = points[0].get("x") if points else None
-
-        if trigger_id == "chart-plano":
-            store_plano = None if store_plano == clicked_label else clicked_label
-        elif trigger_id == "chart-prazo":
-            store_prazo = None if store_prazo == clicked_label else clicked_label
-        elif trigger_id == "chart-estagio":
-            store_estagio = None if store_estagio == clicked_label else clicked_label
-        elif trigger_id == "chart-responsavel":
-            store_resp = None if store_resp == clicked_label else clicked_label
-
-    # Merge click filters with dropdown filters
-    click_tags = []
-    if store_plano:
-        click_tags.append(f"Plano:{store_plano}")
-    if store_prazo:
-        click_tags.append(f"Prazo:{store_prazo}")
-    if click_tags:
-        tags = (tags or []) + click_tags
-
-    # Merge with dropdown values (click overrides take precedence)
-    merged_estagios = [store_estagio] if store_estagio else (estagios if estagios else None)
-    merged_resps = [store_resp] if store_resp else (responsaveis if responsaveis else None)
+    merged_estagios = estagios if estagios else None
+    merged_resps = responsaveis if responsaveis else None
 
     if trigger_id == "btn-update":
         # Run import BEFORE loading data
@@ -562,6 +524,18 @@ def update_dashboard(estagios, responsaveis, tags, ocultar_val,
         tags=tags if tags else None,
         ocultar_concluidos=ocultar,
     )
+
+    # Apply exclusion filters for legend-hidden items
+    if not df.empty:
+        if hidden_status:
+            for s in hidden_status:
+                df = df[df['status_atualizacao'] != s]
+        if hidden_plano:
+            for v in hidden_plano:
+                df = df[~df['tags_plano'].apply(lambda x: v in x if isinstance(x, list) else False)]
+        if hidden_prazo:
+            for v in hidden_prazo:
+                df = df[~df['tags_prazo'].apply(lambda x: v in x if isinstance(x, list) else False)]
 
     total = len(df)
     on_track = len(df[df["status_atualizacao"] == "On Track"]) if total > 0 else 0
@@ -591,9 +565,9 @@ def update_dashboard(estagios, responsaveis, tags, ocultar_val,
              kpi_card("0", "ON TRACK", JF["on_track"]),
              kpi_card("0", "OFF TRACK", JF["off_track"]),
              kpi_card("0", "AT RISK", JF["at_risk"])],
-            subtitle, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig,
+            subtitle, empty_fig, empty_fig, empty_fig,
             [], [],
-            None, None, None, None,
+            [], [], [],
         )
 
     # KPI cards
@@ -663,48 +637,7 @@ def update_dashboard(estagios, responsaveis, tags, ocultar_val,
         showlegend=True,
     )
 
-    fig_estagio = chart_tag_values(
-        df["estagio"].value_counts().sort_values(ascending=True).index.tolist(),
-        "Projetos por Estágio", JF["accent_dark"],
-    )
-    # Rewrite fig_estagio properly
-    est_counts = df["estagio"].value_counts().sort_values(ascending=True)
-    fig_estagio = go.Figure(data=[go.Bar(
-        x=est_counts.values.tolist(),
-        y=est_counts.index.tolist(),
-        orientation="h",
-        marker=dict(color=JF["accent_dark"]),
-        text=est_counts.values.tolist(),
-        textposition="outside",
-        textfont=dict(color=JF["text"], size=11),
-    )])
-    fig_estagio.update_layout(
-        title=dict(text="Projetos por Estágio", font=dict(color=JF["text_bright"], size=14), x=0.5),
-        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-        xaxis=dict(showgrid=False, visible=False),
-        yaxis=dict(showgrid=False, color=JF["text"], tickfont=dict(size=11)),
-        margin=dict(t=40, b=10, l=10, r=40),
-        height=300,
-    )
-
-    resp_counts = df["responsavel"].value_counts().head(10).sort_values(ascending=True)
-    fig_resp = go.Figure(data=[go.Bar(
-        x=resp_counts.values.tolist(),
-        y=resp_counts.index.tolist(),
-        orientation="h",
-        marker=dict(color=JF["accent"]),
-        text=resp_counts.values.tolist(),
-        textposition="outside",
-        textfont=dict(color=JF["text"], size=11),
-    )])
-    fig_resp.update_layout(
-        title=dict(text="Top 10 Responsáveis", font=dict(color=JF["text_bright"], size=14), x=0.5),
-        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-        xaxis=dict(showgrid=False, visible=False),
-        yaxis=dict(showgrid=False, color=JF["text"], tickfont=dict(size=11)),
-        margin=dict(t=40, b=10, l=10, r=40),
-        height=300,
-    )
+    # Estágio e Responsável removidos
 
     # Table data
     table_df = df[["nome", "responsavel", "estagio", "status_atualizacao",
@@ -724,17 +657,103 @@ def update_dashboard(estagios, responsaveis, tags, ocultar_val,
     data = table_df.to_dict("records")
 
     # Reset stores on btn-clear
-    if trigger_id == "btn-clear":
-        store_plano = None
-        store_prazo = None
-        store_estagio = None
-        store_resp = None
-
     return (kpis, subtitle,
             fig_status, fig_plano, fig_prazo,
-            fig_estagio, fig_resp,
             columns, data,
-            store_plano, store_prazo, store_estagio, store_resp)
+            hidden_status, hidden_plano, hidden_prazo)
+
+
+# ─── Restyle callbacks (legend click → hidden store) ─────
+
+@callback(
+    Output("store-hidden-status", "data"),
+    Input("chart-status", "restyleData"),
+    State("store-hidden-status", "data"),
+    prevent_initial_call=True,
+)
+def on_legend_status(restyle, hidden):
+    if not restyle or not isinstance(restyle, list) or len(restyle) < 2:
+        return dash.no_update
+    update, indices = restyle
+    if not indices:
+        return dash.no_update
+    # Map known status values by index order
+    STATUS_ORDER = ["On Track", "Off Track", "At Risk", "On Hold", "Set Status", "Done"]
+    idx = indices[0]
+    if idx >= len(STATUS_ORDER):
+        return dash.no_update
+    val = STATUS_ORDER[idx]
+    if isinstance(update, dict) and "visible" in update:
+        vis = update["visible"]
+        hidden = hidden or []
+        if vis == "legendonly" or vis is False:
+            if val not in hidden:
+                hidden = hidden + [val]
+        else:
+            hidden = [h for h in hidden if h != val]
+    return hidden
+
+
+@callback(
+    Output("store-hidden-plano", "data"),
+    Input("chart-plano", "restyleData"),
+    State("chart-plano", "figure"),
+    State("store-hidden-plano", "data"),
+    prevent_initial_call=True,
+)
+def on_legend_plano(restyle, fig, hidden):
+    if not restyle or not isinstance(restyle, list) or len(restyle) < 2:
+        return dash.no_update
+    update, indices = restyle
+    if not indices:
+        return dash.no_update
+    idx = indices[0]
+    traces = (fig or {}).get("data", [])
+    if idx >= len(traces):
+        return dash.no_update
+    val = traces[idx].get("name", "")
+    if not val:
+        return dash.no_update
+    hidden = hidden or []
+    if isinstance(update, dict) and "visible" in update:
+        vis = update["visible"]
+        if vis == "legendonly" or vis is False:
+            if val not in hidden:
+                hidden = hidden + [val]
+        else:
+            hidden = [h for h in hidden if h != val]
+    return hidden
+
+
+@callback(
+    Output("store-hidden-prazo", "data"),
+    Input("chart-prazo", "restyleData"),
+    State("chart-prazo", "figure"),
+    State("store-hidden-prazo", "data"),
+    prevent_initial_call=True,
+)
+def on_legend_prazo(restyle, fig, hidden):
+    if not restyle or not isinstance(restyle, list) or len(restyle) < 2:
+        return dash.no_update
+    update, indices = restyle
+    if not indices:
+        return dash.no_update
+    idx = indices[0]
+    traces = (fig or {}).get("data", [])
+    if idx >= len(traces):
+        return dash.no_update
+    val = traces[idx].get("name", "")
+    if not val:
+        return dash.no_update
+    hidden = hidden or []
+    if isinstance(update, dict) and "visible" in update:
+        vis = update["visible"]
+        if vis == "legendonly" or vis is False:
+            if val not in hidden:
+                hidden = hidden + [val]
+        else:
+            hidden = [h for h in hidden if h != val]
+    return hidden
 
 
 # ─── Main ─────────────────────────────────────────────────────
