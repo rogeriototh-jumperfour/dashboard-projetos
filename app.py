@@ -465,10 +465,26 @@ app.layout = html.Div([
     dcc.Store(id="store-hidden-status", data=[]),
     dcc.Store(id="store-hidden-plano", data=[]),
     dcc.Store(id="store-hidden-prazo", data=[]),
+    dcc.Store(id="store-import-done", data=0),
 ])
 
 
 # ─── Callbacks ────────────────────────────────────────────────
+
+@callback(
+    Output("store-import-done", "data"),
+    Input("btn-update", "n_clicks"),
+    prevent_initial_call=True,
+)
+def do_import(_n):
+    import subprocess as sp
+    import sys
+    try:
+        sp.run([sys.executable, IMPORT_SCRIPT], capture_output=True, text=True, timeout=120)
+    except Exception:
+        pass
+    return _n or 0
+
 
 @callback(
     [Output("dd-status", "options"),
@@ -482,11 +498,11 @@ app.layout = html.Div([
      Output("dd-tags-prazo", "options"),
      Output("dd-tags-prazo", "value"),
      Output("sidebar-subtitle", "children")],
-    Input("btn-update", "n_clicks"),
+    Input("store-import-done", "data"),
     Input("btn-clear", "n_clicks"),
     prevent_initial_call=False,
 )
-def populate_filters_and_info(_update, _clear):
+def populate_filters_and_info(_import_done, _clear):
     opts = get_filter_options()
     status_options = [{"label": s, "value": s} for s in opts["status"]]
     est_options = [{"label": s, "value": s} for s in opts["estagios"]]
@@ -532,28 +548,18 @@ def populate_filters_and_info(_update, _clear):
      Input("store-hidden-plano", "data"),
      Input("store-hidden-prazo", "data"),
      Input("btn-clear", "n_clicks"),
-     Input("btn-update", "n_clicks")],
+     Input("store-import-done", "data")],
     prevent_initial_call=False,
 )
 def update_dashboard(statuses, estagios, responsaveis, tags_plano, tags_prazo,
                          hidden_status, hidden_plano, hidden_prazo,
-                         _clear, _update):
+                         _clear, _import_done):
     ctx = dash.callback_context
     trigger_id = ctx.triggered[0]["prop_id"].split(".")[0] if ctx.triggered else ""
 
     # Merge dropdown filters
     merged_estagios = estagios if estagios else None
     merged_resps = responsaveis if responsaveis else None
-
-    if trigger_id == "btn-update":
-        import subprocess as sp
-        try:
-            result = sp.run(
-                [sys.executable, IMPORT_SCRIPT],
-                capture_output=True, text=True, timeout=120,
-            )
-        except Exception:
-            pass
 
     if trigger_id == "btn-clear":
         statuses = None
