@@ -23,15 +23,7 @@ HOST = "0.0.0.0"
 PORT = 8050
 
 # Connection pool (min=1, max=5)
-_pool = psycopg2.pool.SimpleConnectionPool(1, 5, DATABASE_URL)
-
-
-def get_conn():
-    return _pool.getconn()
-
-
-def put_conn(conn):
-    _pool.putconn(conn)
+_pool = psycopg2.pool.ThreadedConnectionPool(1, 5, DATABASE_URL)
 
 # ─── JumperFour Brand Colors ──────────────────────────────────
 TEMA = {
@@ -520,13 +512,17 @@ app.layout = html.Div([
     prevent_initial_call=True,
 )
 def do_import(_n):
-    conn = get_db()
-    cur = conn.cursor()
+    conn = None
+    cur = None
+    lock_acquired = False
     try:
+        conn = get_db()
+        cur = conn.cursor()
         cur.execute("SELECT pg_try_advisory_lock(987654)")
         if not cur.fetchone()[0]:
             print("[IMPORT] Lock busy — another import running")
             return _n or 0
+        lock_acquired = True
 
         result = sp.run([sys.executable, IMPORT_SCRIPT], capture_output=True, text=True, timeout=120)
         if result.returncode != 0:
@@ -538,10 +534,25 @@ def do_import(_n):
     except Exception as e:
         print(f"[IMPORT] Error: {e}", flush=True)
     finally:
-        cur.execute("SELECT pg_advisory_unlock(987654)")
-        conn.commit()
-        cur.close()
-        return_db(conn)
+        try:
+            if lock_acquired:
+                cur.execute("SELECT pg_advisory_unlock(987654)")
+                conn.commit()
+        except Exception:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+        try:
+            if cur:
+                cur.close()
+        except Exception:
+            pass
+        try:
+            if conn:
+                return_db(conn)
+        except Exception:
+            pass
     return _n or 0
 
 
