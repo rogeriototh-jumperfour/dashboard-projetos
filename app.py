@@ -67,15 +67,27 @@ def load_data(estagios=None, responsaveis=None, tags=None,
     params = []
 
     if statuses:
-        where.append("p.status_atualizacao = ANY(%s)")
+        if "(Branco)" in statuses:
+            statuses = [s for s in statuses if s != "(Branco)"]
+            where.append("(p.status_atualizacao = ANY(%s) OR p.status_atualizacao IS NULL OR p.status_atualizacao = '')")
+        else:
+            where.append("p.status_atualizacao = ANY(%s)")
         params.append(statuses)
 
     if estagios:
-        where.append("p.estagio = ANY(%s)")
+        if "(Branco)" in estagios:
+            estagios = [s for s in estagios if s != "(Branco)"]
+            where.append("(p.estagio = ANY(%s) OR p.estagio IS NULL OR p.estagio = '')")
+        else:
+            where.append("p.estagio = ANY(%s)")
         params.append(estagios)
 
     if responsaveis:
-        where.append("p.responsavel = ANY(%s)")
+        if "(Branco)" in responsaveis:
+            responsaveis = [s for s in responsaveis if s != "(Branco)"]
+            where.append("(p.responsavel = ANY(%s) OR p.responsavel IS NULL OR p.responsavel = '')")
+        else:
+            where.append("p.responsavel = ANY(%s)")
         params.append(responsaveis)
 
     if tags:
@@ -148,13 +160,22 @@ def get_filter_options():
     # Status
     cur.execute(f"SELECT DISTINCT p.status_atualizacao FROM dash_projetos p ORDER BY p.status_atualizacao")
     options["status"] = [r[0] for r in cur.fetchall() if r[0]]
+    cur.execute("SELECT COUNT(*) FROM dash_projetos p WHERE p.status_atualizacao IS NULL OR p.status_atualizacao = ''")
+    if cur.fetchone()[0] > 0:
+        options["status"].append("(Branco)")
 
     # Estágios
     cur.execute("SELECT DISTINCT p.estagio FROM dash_projetos p ORDER BY p.estagio")
     options["estagios"] = [r[0] for r in cur.fetchall() if r[0]]
+    cur.execute("SELECT COUNT(*) FROM dash_projetos p WHERE p.estagio IS NULL OR p.estagio = ''")
+    if cur.fetchone()[0] > 0:
+        options["estagios"].append("(Branco)")
 
     cur.execute("SELECT DISTINCT p.responsavel FROM dash_projetos p ORDER BY p.responsavel")
     options["responsaveis"] = [r[0] for r in cur.fetchall() if r[0]]
+    cur.execute("SELECT COUNT(*) FROM dash_projetos p WHERE p.responsavel IS NULL OR p.responsavel = ''")
+    if cur.fetchone()[0] > 0:
+        options["responsaveis"].append("(Branco)")
 
     cur.execute("""
         SELECT DISTINCT t->>'val' AS val
@@ -511,7 +532,7 @@ def populate_filters_and_info(_import_done, _clear):
     prazo_options = [{"label": s, "value": f"Prazo:{s}"} for s in opts["tags_prazo"]]
 
     # Preselect: Status (all), Estágio (Booking, CT, SP/PR), Responsável (all)
-    sel_status = [s["value"] for s in status_options]
+    sel_status = [s["value"] for s in status_options if s["value"] not in ("Done", "On Hold")]
     sel_estagio = ["Booking", "CT - Contratos de Tecnologia",
                    "🔄️SP/PR - Em andamento", "⏳SP/PR Em Planejamento"]
     sel_estagio = [s for s in sel_estagio if s in opts["estagios"]]
@@ -617,8 +638,8 @@ def update_dashboard(statuses, estagios, responsaveis, tags_plano, tags_prazo,
         fig_status = chart_status(df, hidden_status)
         plano_vals = flatten_tags(df, "tags_plano")
         plano_counts = pd.Series(plano_vals).value_counts()
-        plano_tag_colors = {"Preparar": "#3498DB", "Atraso": "#E67E22",
-                              "Sem datas": "#F39C12", "Sem tarefas": "#E74C3C",
+        plano_tag_colors = {"Preparar": "#3498DB", "Atraso": "#E74C3C",
+                              "Sem datas": "#F39C12", "Sem tarefas": "#D4A017",
                               "Sem responsáveis": "#F39C12", "Resp. em Tarefa Resumo": "#D4A017",
                               "OK": "#27AE60"}
         fig_plano = go.Figure()

@@ -1,0 +1,15 @@
+[Unit]
+Description=Dashboard Projetos JumperFour
+After=network.target docker.service
+
+[Service]
+Type=simple
+User=rtoth
+WorkingDirectory=/home/rtoth/dashboard
+ExecStart=/home/rtoth/.local/bin/python3 /home/rtoth/dashboard/app.py
+Restart=always
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target
