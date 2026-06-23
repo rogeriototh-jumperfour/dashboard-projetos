@@ -5,22 +5,32 @@ Dash app com tema dark, identidade visual JumperFour.
 Dados sempre refletem o estado atual do banco (replace-only).
 """
 
-import os, sys, subprocess
+import os, sys, subprocess as sp
 from datetime import datetime
 
-import dash
 from dash import dcc, html, Input, Output, State, callback, dash_table
-import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
 import psycopg2
 import psycopg2.extras
+import psycopg2.pool
 
 # ─── Config ───────────────────────────────────────────────────
 DATABASE_URL = "postgresql://postgres@localhost:5432/dashboard_projetos"
 IMPORT_SCRIPT = os.path.expanduser("~/dashboard/import.py")
 HOST = "0.0.0.0"
 PORT = 8050
+
+# Connection pool (min=1, max=5)
+_pool = psycopg2.pool.SimpleConnectionPool(1, 5, DATABASE_URL)
+
+
+def get_conn():
+    return _pool.getconn()
+
+
+def put_conn(conn):
+    _pool.putconn(conn)
 
 # ─── JumperFour Brand Colors ──────────────────────────────────
 TEMA = {
@@ -43,7 +53,11 @@ TEMA = {
 
 # ─── Database ─────────────────────────────────────────────────
 def get_db():
-    return psycopg2.connect(DATABASE_URL)
+    return _pool.getconn()
+
+
+def return_db(conn):
+    _pool.putconn(conn)
 
 
 def get_last_extracao():
@@ -52,7 +66,7 @@ def get_last_extracao():
     cur.execute("SELECT filename, file_mtime, row_count FROM dash_extracoes ORDER BY imported_at DESC LIMIT 1")
     row = cur.fetchone()
     cur.close()
-    conn.close()
+    return_db(conn)
     return row
 
 
@@ -194,7 +208,7 @@ def get_filter_options():
     options["tags_prazo"] = [r[0] for r in cur.fetchall()]
 
     cur.close()
-    conn.close()
+    return_db(conn)
     return options
 
 
@@ -505,12 +519,28 @@ app.layout = html.Div([
     prevent_initial_call=True,
 )
 def do_import(_n):
-    import subprocess as sp
-    import sys
+    conn = get_db()
+    cur = conn.cursor()
     try:
-        sp.run([sys.executable, IMPORT_SCRIPT], capture_output=True, text=True, timeout=120)
-    except Exception:
-        pass
+        cur.execute("SELECT pg_try_advisory_lock(987654)")
+        if not cur.fetchone()[0]:
+            print("[IMPORT] Lock busy — another import running")
+            return _n or 0
+
+        result = sp.run([sys.executable, IMPORT_SCRIPT], capture_output=True, text=True, timeout=120)
+        if result.returncode != 0:
+            print(f"[IMPORT] Failed (exit {result.returncode})", flush=True)
+            if result.stderr:
+                print(result.stderr[:500], flush=True)
+    except sp.TimeoutExpired:
+        print("[IMPORT] Timeout (>120s)", flush=True)
+    except Exception as e:
+        print(f"[IMPORT] Error: {e}", flush=True)
+    finally:
+        cur.execute("SELECT pg_advisory_unlock(987654)")
+        conn.commit()
+        cur.close()
+        return_db(conn)
     return _n or 0
 
 
