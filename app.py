@@ -9,6 +9,7 @@ import os, sys, subprocess as sp
 from datetime import datetime
 
 from dash import dcc, html, Input, Output, State, callback, dash_table
+import dash
 import plotly.graph_objects as go
 import pandas as pd
 import psycopg2
