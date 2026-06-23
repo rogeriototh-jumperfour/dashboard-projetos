@@ -294,9 +294,8 @@ app.layout = html.Div([
         # ── Sidebar ──
         html.Div([
             html.Div([
-                html.Div("JF", style={
-                    "fontSize": 32, "fontWeight": 900, "color": JF["accent_light"],
-                    "fontFamily": "Arial Black, sans-serif", "letterSpacing": "-1px",
+                html.Img(src="/assets/logo-jumperfour.png", style={
+                    "height": 40, "marginBottom": 4,
                 }),
                 html.Div("Dashboard Projetos", style={
                     "fontSize": 14, "color": JF["text_muted"],
@@ -518,7 +517,7 @@ def populate_filters_and_info(_n):
     if last:
         fname, ts, count = last
         dt = ts.strftime("%d/%m/%Y %H:%M") if hasattr(ts, "strftime") else str(ts)[:19]
-        subtitle = f"Atualizado: {fname} ({dt})"
+        subtitle = f"Atualizado: {dt}"
     else:
         subtitle = "Nenhum dado importado"
 
@@ -614,7 +613,6 @@ def update_dashboard(statuses, estagios, responsaveis, tags_plano, tags_prazo, o
         subtitle = f"{count} projetos — exibindo {total}"
         if estagios or responsaveis or tags or hidden_status or hidden_plano or hidden_prazo:
             subtitle += " (filtrado)"
-        subtitle += f" — {fname} ({dt})"
     else:
         subtitle = "Nenhum dado importado"
 
