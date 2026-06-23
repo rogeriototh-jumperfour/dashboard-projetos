@@ -56,7 +56,8 @@ def get_last_extracao():
     return row
 
 
-def load_data(estagios=None, responsaveis=None, tags=None, ocultar_concluidos=True):
+def load_data(estagios=None, responsaveis=None, tags=None, ocultar_concluidos=True,
+              excluir_status=None, excluir_plano=None, excluir_prazo=None):
     """Load filtered data from DB. Returns a DataFrame."""
     conn = get_db()
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -87,6 +88,19 @@ def load_data(estagios=None, responsaveis=None, tags=None, ocultar_concluidos=Tr
 
     if ocultar_concluidos:
         where.append("p.estagio != 'Done'")
+
+    # Legend-based exclusions (NOT IN / NOT EXISTS)
+    if excluir_status:
+        where.append("p.status_atualizacao != ALL(%s)")
+        params.append(excluir_status)
+    if excluir_plano:
+        for val in excluir_plano:
+            where.append(f"NOT EXISTS (SELECT 1 FROM jsonb_array_elements(p.tags_jsonb) AS t WHERE t->>'cat' = 'Plano' AND t->>'val' = %s)")
+            params.append(val)
+    if excluir_prazo:
+        for val in excluir_prazo:
+            where.append(f"NOT EXISTS (SELECT 1 FROM jsonb_array_elements(p.tags_jsonb) AS t WHERE t->>'cat' = 'Prazo' AND t->>'val' = %s)")
+            params.append(val)
 
     where_clause = " AND ".join(where) if where else "TRUE"
 
@@ -192,12 +206,12 @@ def chart_status(df, hidden=None):
         ))
 
     fig.update_layout(
-        barmode="stack",
+        uirevision=True, barmode="stack",
         title=dict(text="Status de Atualização", font=dict(color=JF["text_bright"], size=16), x=0.5),
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
         margin=dict(t=40, b=50, l=10, r=10),
         height=200,
-        uirevision=True,
+        
         xaxis=dict(showgrid=False, visible=False),
         yaxis=dict(showgrid=False, visible=False),
         legend=dict(
@@ -515,25 +529,17 @@ def update_dashboard(estagios, responsaveis, tags, ocultar_val,
     hidden_status = hidden_status or []
     hidden_plano = hidden_plano or []
     hidden_prazo = hidden_prazo or []
+    
 
     df = load_data(
         estagios=merged_estagios,
         responsaveis=merged_resps,
         tags=tags if tags else None,
         ocultar_concluidos=ocultar,
+        excluir_status=hidden_status if hidden_status else None,
+        excluir_plano=hidden_plano if hidden_plano else None,
+        excluir_prazo=hidden_prazo if hidden_prazo else None,
     )
-
-    # Apply legend-based exclusion via post-filter
-    if not df.empty:
-        if hidden_status:
-            for s in hidden_status:
-                df = df[df["status_atualizacao"] != s]
-        if hidden_plano:
-            for v in hidden_plano:
-                df = df[~df["tags_plano"].apply(lambda x: v in x if isinstance(x, list) else False)]
-        if hidden_prazo:
-            for v in hidden_prazo:
-                df = df[~df["tags_prazo"].apply(lambda x: v in x if isinstance(x, list) else False)]
 
     total = len(df)
     on_track = len(df[df["status_atualizacao"] == "On Track"]) if total > 0 else 0
@@ -573,8 +579,7 @@ def update_dashboard(estagios, responsaveis, tags, ocultar_val,
                     marker=dict(color=plano_tag_colors.get(val, "#95A5A6")),
                     text=str(cnt), textposition="inside", textfont=dict(color="#fff", size=13, weight=700),
                     hovertemplate=f"{val}: {cnt}<extra></extra>"))
-        fig_plano.update_layout(barmode="stack", height=200,
-            uirevision=True,
+        fig_plano.update_layout(uirevision=True, barmode="stack", height=200,
             title=dict(text="Tags — Plano", font=dict(color=JF["text_bright"], size=16), x=0.5),
             paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
             margin=dict(t=40, b=50, l=10, r=10),
@@ -593,8 +598,7 @@ def update_dashboard(estagios, responsaveis, tags, ocultar_val,
                     marker=dict(color=prazo_tag_colors.get(val, "#95A5A6")),
                     text=str(cnt), textposition="inside", textfont=dict(color="#fff", size=13, weight=700),
                     hovertemplate=f"{val}: {cnt}<extra></extra>"))
-        fig_prazo.update_layout(barmode="stack", height=200,
-            uirevision=True,
+        fig_prazo.update_layout(uirevision=True, barmode="stack", height=200,
             title=dict(text="Tags — Prazo", font=dict(color=JF["text_bright"], size=16), x=0.5),
             paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
             margin=dict(t=40, b=50, l=10, r=10),
