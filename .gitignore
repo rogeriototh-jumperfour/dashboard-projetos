@@ -1,0 +1,9 @@
+# Data files (Excel imports)
+data/*.xlsx
+data/*.xls
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
