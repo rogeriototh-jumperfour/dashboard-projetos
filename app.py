@@ -161,12 +161,20 @@ def get_filter_options():
     options["responsaveis"] = [r[0] for r in cur.fetchall() if r[0]]
 
     cur.execute("""
-        SELECT DISTINCT t->>'cat' AS cat, t->>'val' AS val
+        SELECT DISTINCT t->>'val' AS val
         FROM dash_projetos p, jsonb_array_elements(p.tags_jsonb) AS t
-        WHERE t->>'cat' IN ('Plano', 'Prazo')
-        ORDER BY cat, val
+        WHERE t->>'cat' = 'Plano'
+        ORDER BY val
     """)
-    options["tags"] = [f'{r[0]}:{r[1]}' for r in cur.fetchall()]
+    options["tags_plano"] = [r[0] for r in cur.fetchall()]
+
+    cur.execute("""
+        SELECT DISTINCT t->>'val' AS val
+        FROM dash_projetos p, jsonb_array_elements(p.tags_jsonb) AS t
+        WHERE t->>'cat' = 'Prazo'
+        ORDER BY val
+    """)
+    options["tags_prazo"] = [r[0] for r in cur.fetchall()]
 
     cur.close()
     conn.close()
@@ -217,7 +225,7 @@ def chart_status(df, hidden=None):
 
     fig.update_layout(
         uirevision=True, barmode="stack",
-        title=dict(text="Status de Atualização", font=dict(color=JF["text_bright"], size=16), x=0.5),
+        title=dict(text="STATUS", font=dict(color=JF["text_bright"], size=16), x=0.5),
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
         margin=dict(t=40, b=50, l=10, r=10),
         height=200,
@@ -230,6 +238,7 @@ def chart_status(df, hidden=None):
             xanchor="center", x=0.5,
             font=dict(color=JF["text"], size=11),
             bgcolor="rgba(0,0,0,0)",
+            itemclick=False,
         ),
         showlegend=True,
     )
@@ -318,9 +327,14 @@ app.layout = html.Div([
             ], style={"padding": "8px 20px"}),
 
             html.Div([
-                html.Label("Tags", style={"color": JF["text_muted"], "fontSize": 11, "textTransform": "uppercase", "letterSpacing": "1px"}),
-                dcc.Dropdown(id="dd-tags", multi=True, style={"marginTop": 6, "color": "#333", "fontSize": 13}),
-            ], style={"padding": "8px 20px 8px"}),
+                html.Label("Plano", style={"color": JF["text_muted"], "fontSize": 11, "textTransform": "uppercase", "letterSpacing": "1px"}),
+                dcc.Dropdown(id="dd-tags-plano", multi=True, style={"marginTop": 6, "color": "#333", "fontSize": 13}),
+            ], style={"padding": "8px 20px 4px"}),
+
+            html.Div([
+                html.Label("Prazo", style={"color": JF["text_muted"], "fontSize": 11, "textTransform": "uppercase", "letterSpacing": "1px"}),
+                dcc.Dropdown(id="dd-tags-prazo", multi=True, style={"marginTop": 6, "color": "#333", "fontSize": 13}),
+            ], style={"padding": "4px 20px 8px"}),
 
             html.Div([
                 dcc.Checklist(
@@ -403,8 +417,10 @@ app.layout = html.Div([
                         "background": JF["accent"],
                         "color": "#fff",
                         "fontWeight": 700,
-                        "fontSize": 12,
+                        "fontSize": 14,
+                        "fontFamily": "Arial, sans-serif",
                         "textTransform": "uppercase",
+                        "textAlign": "center",
                     },
                     style_data={
                         "background": JF["bg_card"],
@@ -428,6 +444,11 @@ app.layout = html.Div([
                     ],
                     style_data_conditional=[
                         {
+                            "if": {},
+                            "backgroundColor": JF["bg_card"],
+                            "color": JF["text"],
+                        },
+                        {
                             "if": {"filter_query": '{status_atualizacao} = "Off Track"'},
                             "backgroundColor": "#3D2E0A",
                             "color": JF["text"],
@@ -439,7 +460,6 @@ app.layout = html.Div([
                         },
                     ],
                     sort_action="native",
-                    filter_action="native",
                 ),
             ], style={
                 "padding": "16px 32px 32px",
@@ -471,7 +491,10 @@ app.layout = html.Div([
      Output("dd-estagio", "value"),
      Output("dd-responsavel", "options"),
      Output("dd-responsavel", "value"),
-     Output("dd-tags", "options"),
+     Output("dd-tags-plano", "options"),
+     Output("dd-tags-plano", "value"),
+     Output("dd-tags-prazo", "options"),
+     Output("dd-tags-prazo", "value"),
      Output("sidebar-subtitle", "children")],
     Input("btn-update", "n_clicks"),
     prevent_initial_call=False,
@@ -481,7 +504,8 @@ def populate_filters_and_info(_n):
     status_options = [{"label": s, "value": s} for s in opts["status"]]
     est_options = [{"label": s, "value": s} for s in opts["estagios"]]
     resp_options = [{"label": s, "value": s} for s in opts["responsaveis"]]
-    tag_options = [{"label": s.replace(":", ": "), "value": s} for s in opts["tags"]]
+    plano_options = [{"label": s, "value": f"Plano:{s}"} for s in opts["tags_plano"]]
+    prazo_options = [{"label": s, "value": f"Prazo:{s}"} for s in opts["tags_prazo"]]
 
     # Preselect: Status (all), Estágio (Booking, CT, SP/PR), Responsável (all)
     sel_status = [s["value"] for s in status_options]
@@ -498,7 +522,7 @@ def populate_filters_and_info(_n):
     else:
         subtitle = "Nenhum dado importado"
 
-    return status_options, sel_status, est_options, sel_estagio, resp_options, sel_resp, tag_options, subtitle
+    return status_options, sel_status, est_options, sel_estagio, resp_options, sel_resp, plano_options, [], prazo_options, [], subtitle
 
 
 @callback(
@@ -515,7 +539,8 @@ def populate_filters_and_info(_n):
     [Input("dd-status", "value"),
      Input("dd-estagio", "value"),
      Input("dd-responsavel", "value"),
-     Input("dd-tags", "value"),
+     Input("dd-tags-plano", "value"),
+     Input("dd-tags-prazo", "value"),
      Input("chk-ocultar-concluidos", "value"),
      Input("store-hidden-status", "data"),
      Input("store-hidden-plano", "data"),
@@ -524,7 +549,7 @@ def populate_filters_and_info(_n):
      Input("btn-update", "n_clicks")],
     prevent_initial_call=False,
 )
-def update_dashboard(statuses, estagios, responsaveis, tags, ocultar_val,
+def update_dashboard(statuses, estagios, responsaveis, tags_plano, tags_prazo, ocultar_val,
                          hidden_status, hidden_plano, hidden_prazo,
                          _clear, _update):
     ocultar = "ocultar" in (ocultar_val or [])
@@ -549,7 +574,8 @@ def update_dashboard(statuses, estagios, responsaveis, tags, ocultar_val,
         statuses = None
         estagios = None
         responsaveis = None
-        tags = None
+        tags_plano = None
+        tags_prazo = None
         hidden_status = []
         hidden_plano = []
         hidden_prazo = []
@@ -560,11 +586,16 @@ def update_dashboard(statuses, estagios, responsaveis, tags, ocultar_val,
     hidden_prazo = hidden_prazo or []
     
 
+    # Merge plano and prazo tags
+    tags = (tags_plano or []) + (tags_prazo or [])
+    if not tags:
+        tags = None
+
     df = load_data(
         statuses=statuses if statuses else None,
         estagios=merged_estagios,
         responsaveis=merged_resps,
-        tags=tags if tags else None,
+        tags=tags,
         ocultar_concluidos=ocultar,
         excluir_status=hidden_status if hidden_status else None,
         excluir_plano=hidden_plano if hidden_plano else None,
@@ -610,12 +641,13 @@ def update_dashboard(statuses, estagios, responsaveis, tags, ocultar_val,
                     text=str(cnt), textposition="inside", textfont=dict(color="#fff", size=13, weight=700),
                     hovertemplate=f"{val}: {cnt}<extra></extra>"))
         fig_plano.update_layout(uirevision=True, barmode="stack", height=200,
-            title=dict(text="Tags — Plano", font=dict(color=JF["text_bright"], size=16), x=0.5),
+            title=dict(text="Qualidade do PLANO", font=dict(color=JF["text_bright"], size=16), x=0.5),
             paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
             margin=dict(t=40, b=50, l=10, r=10),
             xaxis=dict(showgrid=False, visible=False), yaxis=dict(showgrid=False, visible=False),
             legend=dict(orientation="h", yanchor="top", y=-0.3, xanchor="center", x=0.5,
-                font=dict(color=JF["text"], size=10), bgcolor="rgba(0,0,0,0)"), showlegend=True)
+                                font=dict(color=JF["text"], size=10), bgcolor="rgba(0,0,0,0)",
+                                itemclick=False), showlegend=True)
         prazo_vals = flatten_tags(df, "tags_prazo")
         prazo_counts = pd.Series(prazo_vals).value_counts()
         prazo_tag_colors = {"Atrasado": "#E74C3C", "<=7 dias": "#E67E22",
@@ -629,12 +661,13 @@ def update_dashboard(statuses, estagios, responsaveis, tags, ocultar_val,
                     text=str(cnt), textposition="inside", textfont=dict(color="#fff", size=13, weight=700),
                     hovertemplate=f"{val}: {cnt}<extra></extra>"))
         fig_prazo.update_layout(uirevision=True, barmode="stack", height=200,
-            title=dict(text="Tags — Prazo", font=dict(color=JF["text_bright"], size=16), x=0.5),
+            title=dict(text="PRAZO", font=dict(color=JF["text_bright"], size=16), x=0.5),
             paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
             margin=dict(t=40, b=50, l=10, r=10),
             xaxis=dict(showgrid=False, visible=False), yaxis=dict(showgrid=False, visible=False),
             legend=dict(orientation="h", yanchor="top", y=-0.3, xanchor="center", x=0.5,
-                font=dict(color=JF["text"], size=10), bgcolor="rgba(0,0,0,0)"), showlegend=True)
+                                font=dict(color=JF["text"], size=10), bgcolor="rgba(0,0,0,0)",
+                                itemclick=False), showlegend=True)
 
     # Table data
     if df.empty:
