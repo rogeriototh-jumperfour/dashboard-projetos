@@ -57,13 +57,18 @@ def get_last_extracao():
 
 
 def load_data(estagios=None, responsaveis=None, tags=None, ocultar_concluidos=True,
-              excluir_status=None, excluir_plano=None, excluir_prazo=None):
+              excluir_status=None, excluir_plano=None, excluir_prazo=None,
+              statuses=None):
     """Load filtered data from DB. Returns a DataFrame."""
     conn = get_db()
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
     where = []
     params = []
+
+    if statuses:
+        where.append("p.status_atualizacao = ANY(%s)")
+        params.append(statuses)
 
     if estagios:
         where.append("p.estagio = ANY(%s)")
@@ -144,6 +149,11 @@ def get_filter_options():
 
     options = {}
 
+    # Status
+    cur.execute(f"SELECT DISTINCT p.status_atualizacao FROM dash_projetos p ORDER BY p.status_atualizacao")
+    options["status"] = [r[0] for r in cur.fetchall() if r[0]]
+
+    # Estágios
     cur.execute("SELECT DISTINCT p.estagio FROM dash_projetos p ORDER BY p.estagio")
     options["estagios"] = [r[0] for r in cur.fetchall() if r[0]]
 
@@ -291,9 +301,14 @@ app.layout = html.Div([
 
             # Filters
             html.Div([
+                html.Label("Status", style={"color": JF["text_muted"], "fontSize": 11, "textTransform": "uppercase", "letterSpacing": "1px"}),
+                dcc.Dropdown(id="dd-status", multi=True,
+                    style={"marginTop": 6, "color": "#333", "fontSize": 13}),
+            ], style={"padding": "16px 20px 8px"}),
+
+            html.Div([
                 html.Label("Estágio", style={"color": JF["text_muted"], "fontSize": 11, "textTransform": "uppercase", "letterSpacing": "1px"}),
                 dcc.Dropdown(id="dd-estagio", multi=True,
-                    value=["Booking", "CT - Contratos de Tecnologia", "🔄️SP/PR - Em andamento", "⏳SP/PR Em Planejamento"],
                     style={"marginTop": 6, "color": "#333", "fontSize": 13}),
             ], style={"padding": "16px 20px 8px"}),
 
@@ -450,8 +465,12 @@ app.layout = html.Div([
 # ─── Callbacks ────────────────────────────────────────────────
 
 @callback(
-    [Output("dd-estagio", "options"),
+    [Output("dd-status", "options"),
+     Output("dd-status", "value"),
+     Output("dd-estagio", "options"),
+     Output("dd-estagio", "value"),
      Output("dd-responsavel", "options"),
+     Output("dd-responsavel", "value"),
      Output("dd-tags", "options"),
      Output("sidebar-subtitle", "children")],
     Input("btn-update", "n_clicks"),
@@ -459,9 +478,17 @@ app.layout = html.Div([
 )
 def populate_filters_and_info(_n):
     opts = get_filter_options()
+    status_options = [{"label": s, "value": s} for s in opts["status"]]
     est_options = [{"label": s, "value": s} for s in opts["estagios"]]
     resp_options = [{"label": s, "value": s} for s in opts["responsaveis"]]
     tag_options = [{"label": s.replace(":", ": "), "value": s} for s in opts["tags"]]
+
+    # Preselect: Status (all), Estágio (Booking, CT, SP/PR), Responsável (all)
+    sel_status = [s["value"] for s in status_options]
+    sel_estagio = ["Booking", "CT - Contratos de Tecnologia",
+                   "🔄️SP/PR - Em andamento", "⏳SP/PR Em Planejamento"]
+    sel_estagio = [s for s in sel_estagio if s in opts["estagios"]]
+    sel_resp = [s["value"] for s in resp_options]
 
     last = get_last_extracao()
     if last:
@@ -471,7 +498,7 @@ def populate_filters_and_info(_n):
     else:
         subtitle = "Nenhum dado importado"
 
-    return est_options, resp_options, tag_options, subtitle
+    return status_options, sel_status, est_options, sel_estagio, resp_options, sel_resp, tag_options, subtitle
 
 
 @callback(
@@ -485,7 +512,8 @@ def populate_filters_and_info(_n):
      Output("store-hidden-status", "data"),
      Output("store-hidden-plano", "data"),
      Output("store-hidden-prazo", "data")],
-    [Input("dd-estagio", "value"),
+    [Input("dd-status", "value"),
+     Input("dd-estagio", "value"),
      Input("dd-responsavel", "value"),
      Input("dd-tags", "value"),
      Input("chk-ocultar-concluidos", "value"),
@@ -496,7 +524,7 @@ def populate_filters_and_info(_n):
      Input("btn-update", "n_clicks")],
     prevent_initial_call=False,
 )
-def update_dashboard(estagios, responsaveis, tags, ocultar_val,
+def update_dashboard(statuses, estagios, responsaveis, tags, ocultar_val,
                          hidden_status, hidden_plano, hidden_prazo,
                          _clear, _update):
     ocultar = "ocultar" in (ocultar_val or [])
@@ -518,6 +546,7 @@ def update_dashboard(estagios, responsaveis, tags, ocultar_val,
             pass
 
     if trigger_id == "btn-clear":
+        statuses = None
         estagios = None
         responsaveis = None
         tags = None
@@ -532,6 +561,7 @@ def update_dashboard(estagios, responsaveis, tags, ocultar_val,
     
 
     df = load_data(
+        statuses=statuses if statuses else None,
         estagios=merged_estagios,
         responsaveis=merged_resps,
         tags=tags if tags else None,
