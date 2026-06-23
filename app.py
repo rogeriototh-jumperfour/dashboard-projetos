@@ -168,23 +168,42 @@ def kpi_card(value, label, color):
         "border": f"1px solid {JF['border']}",
     })
 
-
 def chart_status(df):
+    """Barra única horizontal com chunks proporcionais por status"""
     counts = df["status_atualizacao"].value_counts()
-    colors_map = {"On Track": JF["on_track"], "Off Track": JF["off_track"], "At Risk": JF["at_risk"]}
-    fig = go.Figure(data=[go.Pie(
-        labels=counts.index.tolist(),
-        values=counts.values.tolist(),
-        marker=dict(colors=[colors_map.get(s, JF["text_muted"]) for s in counts.index]),
-        textinfo="label+value",
-        textfont=dict(color=JF["text"], size=13),
-        hole=0.45,
-    )])
+    colors_map = {"On Track": "#27AE60", "Off Track": "#E74C3C",
+                  "At Risk": "#E67E22", "On Hold": "#3498DB", "Set Status": "#95A5A6", "Done": "#8E44AD"}
+
+    fig = go.Figure()
+    for status in counts.index:
+        fig.add_trace(go.Bar(
+            name=status,
+            x=[counts[status]],
+            y=[""],
+            orientation="h",
+            marker=dict(color=colors_map.get(status, JF["text_muted"])),
+            text=str(counts[status]),
+            textposition="inside",
+            textfont=dict(color="#fff", size=14, weight=700),
+            hovertemplate=f"{status}: {counts[status]}<extra></extra>",
+        ))
+
     fig.update_layout(
+        barmode="stack",
         title=dict(text="Status de Atualização", font=dict(color=JF["text_bright"], size=16), x=0.5),
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-        margin=dict(t=40, b=10, l=10, r=10),
-        showlegend=False, height=280,
+        margin=dict(t=40, b=50, l=10, r=10),
+        height=200,
+        xaxis=dict(showgrid=False, visible=False),
+        yaxis=dict(showgrid=False, visible=False),
+        legend=dict(
+            orientation="h",
+            yanchor="top", y=-0.3,
+            xanchor="center", x=0.5,
+            font=dict(color=JF["text"], size=11),
+            bgcolor="rgba(0,0,0,0)",
+        ),
+        showlegend=True,
     )
     return fig
 
@@ -588,11 +607,61 @@ def update_dashboard(estagios, responsaveis, tags, ocultar_val,
     # Charts
     fig_status = chart_status(df)
 
+    # Plano stacked bar
     plano_vals = flatten_tags(df, "tags_plano")
-    fig_plano = chart_tag_values(plano_vals, "Tags — Plano", JF["accent"])
+    plano_counts = pd.Series(plano_vals).value_counts()
+    plano_tag_colors = {"Preparar": "#3498DB", "Atraso": "#E67E22",
+                          "Sem datas": "#F39C12", "Sem tarefas": "#E74C3C",
+                          "Sem responsáveis": "#F39C12", "Resp. em Tarefa Resumo": "#D4A017",
+                          "OK": "#27AE60"}
+    fig_plano = go.Figure()
+    for val, cnt in plano_counts.items():
+        fig_plano.add_trace(go.Bar(
+            name=val, x=[cnt], y=[""], orientation="h",
+            marker=dict(color=plano_tag_colors.get(val, "#95A5A6")),
+            text=str(cnt), textposition="inside",
+            textfont=dict(color="#fff", size=13, weight=700),
+            hovertemplate=f"{val}: {cnt}<extra></extra>",
+        ))
+    fig_plano.update_layout(
+        barmode="stack", height=200,
+        title=dict(text="Tags — Plano", font=dict(color=JF["text_bright"], size=16), x=0.5),
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+        margin=dict(t=40, b=50, l=10, r=10),
+        xaxis=dict(showgrid=False, visible=False),
+        yaxis=dict(showgrid=False, visible=False),
+        legend=dict(orientation="h", yanchor="top", y=-0.3, xanchor="center", x=0.5,
+                    font=dict(color=JF["text"], size=10), bgcolor="rgba(0,0,0,0)",
+                    itemclick=False),
+        showlegend=True,
+    )
 
+    # Prazo stacked bar
     prazo_vals = flatten_tags(df, "tags_prazo")
-    fig_prazo = chart_tag_values(prazo_vals, "Tags — Prazo", JF["on_track"])
+    prazo_counts = pd.Series(prazo_vals).value_counts()
+    prazo_tag_colors = {"Atrasado": "#E74C3C", "<=7 dias": "#E67E22",
+                          "<=30 dias": "#F39C12", "Em dia": "#27AE60"}
+    fig_prazo = go.Figure()
+    for val, cnt in prazo_counts.items():
+        fig_prazo.add_trace(go.Bar(
+            name=val, x=[cnt], y=[""], orientation="h",
+            marker=dict(color=prazo_tag_colors.get(val, "#95A5A6")),
+            text=str(cnt), textposition="inside",
+            textfont=dict(color="#fff", size=13, weight=700),
+            hovertemplate=f"{val}: {cnt}<extra></extra>",
+        ))
+    fig_prazo.update_layout(
+        barmode="stack", height=200,
+        title=dict(text="Tags — Prazo", font=dict(color=JF["text_bright"], size=16), x=0.5),
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+        margin=dict(t=40, b=50, l=10, r=10),
+        xaxis=dict(showgrid=False, visible=False),
+        yaxis=dict(showgrid=False, visible=False),
+        legend=dict(orientation="h", yanchor="top", y=-0.3, xanchor="center", x=0.5,
+                    font=dict(color=JF["text"], size=10), bgcolor="rgba(0,0,0,0)",
+                    itemclick=False),
+        showlegend=True,
+    )
 
     fig_estagio = chart_tag_values(
         df["estagio"].value_counts().sort_values(ascending=True).index.tolist(),
