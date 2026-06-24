@@ -228,8 +228,9 @@ def chart_status(df, hidden=None):
     """Barra única horizontal com chunks proporcionais por status"""
     hidden = hidden or []
     counts = df["status_atualizacao"].value_counts()
-    colors_map = {"On Track": "#27AE60", "Off Track": "#E74C3C",
-                  "At Risk": "#E67E22", "On Hold": "#3498DB", "Set Status": "#95A5A6", "Done": "#8E44AD"}
+    colors_map = {"On Hold": "#3498DB", "Off Track": "#E74C3C",
+                  "At Risk": "#E67E22", "On Track": "#27AE60",
+                  "Done": "#8E44AD", "Set Status": "#95A5A6"}
 
     fig = go.Figure()
     for status in colors_map:  # sempre inclui todos, mesmo os ocultos com count=0
