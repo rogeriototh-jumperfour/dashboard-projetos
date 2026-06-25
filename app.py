@@ -709,8 +709,8 @@ def update_dashboard(statuses, estagios, responsaveis, tags_plano, tags_prazo,
                         itemclick=False), showlegend=True)
         prazo_vals = flatten_tags(df, "tags_prazo")
         prazo_counts = pd.Series(prazo_vals).value_counts()
-        prazo_tag_colors = {"Atrasado": "#E74C3C", "<=7 dias": "#E67E22",
-                              "<=30 dias": "#F39C12", "Em dia": "#27AE60"}
+        prazo_tag_colors = {"Atrasado": "#E74C3C", "Replanejado": "#3498DB",
+                              "<=7 dias": "#E67E22", "<=30 dias": "#F39C12", "Em dia": "#27AE60"}
         fig_prazo = go.Figure()
         for val in prazo_tag_colors:
             cnt = prazo_counts.get(val, 0)
